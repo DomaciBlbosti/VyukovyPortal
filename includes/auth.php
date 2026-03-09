@@ -1,0 +1,84 @@
+<?php
+// includes/auth.php
+
+if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../config/app.php';
+
+function isLoggedIn(): bool {
+    return isset($_SESSION['user_id']);
+}
+
+function isAdmin(): bool {
+    return !empty($_SESSION['is_admin']);
+}
+
+function requireLogin(): void {
+    if (!isLoggedIn()) {
+        header('Location: ' . BASE_URL . '/index.php');
+        exit;
+    }
+}
+
+function requireAdmin(): void {
+    requireLogin();
+    if (!isAdmin()) {
+        header('Location: ' . BASE_URL . '/dashboard.php');
+        exit;
+    }
+}
+
+function getCurrentUser(): array {
+    return [
+        'id'           => $_SESSION['user_id']      ?? 0,
+        'username'     => $_SESSION['username']     ?? '',
+        'display_name' => $_SESSION['display_name'] ?? '',
+        'is_admin'     => $_SESSION['is_admin']     ?? false,
+    ];
+}
+
+function login(string $username, string $password): bool|string {
+    require_once __DIR__ . '/../config/db.php';
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT id, username, password_hash, display_name, is_admin, is_active FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if (!$user) return false;
+    if (!$user['is_active']) return 'disabled';
+    if (!password_verify($password, $user['password_hash'])) return false;
+
+    $_SESSION['user_id']      = $user['id'];
+    $_SESSION['username']     = $user['username'];
+    $_SESSION['display_name'] = $user['display_name'];
+    $_SESSION['is_admin']     = (bool)$user['is_admin'];
+
+    $db->prepare('UPDATE users SET last_login = NOW() WHERE id = ?')->execute([$user['id']]);
+    return true;
+}
+
+function logout(): void {
+    session_destroy();
+    header('Location: ' . BASE_URL . '/index.php');
+    exit;
+}
+
+function saveGameSession(array $data): int {
+    require_once __DIR__ . '/../config/db.php';
+    $db   = getDB();
+    $user = getCurrentUser();
+    $stmt = $db->prepare('
+        INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ');
+    $stmt->execute([
+        $user['id'],
+        $data['game_type']        ?? 'classic',
+        $data['wpm']              ?? 0,
+        $data['accuracy']         ?? 0,
+        $data['duration_seconds'] ?? 0,
+        $data['chars_typed']      ?? 0,
+        $data['errors']           ?? 0,
+        $data['text_snippet']     ?? '',
+    ]);
+    return (int)$db->lastInsertId();
+}

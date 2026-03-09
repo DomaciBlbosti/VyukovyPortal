@@ -1,0 +1,40 @@
+-- =============================================
+-- TypeMaster — databázové schéma
+-- (generováno instalačním průvodcem)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    username     VARCHAR(50)  NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    display_name VARCHAR(100),
+    is_admin     TINYINT(1)   NOT NULL DEFAULT 0,
+    is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+    created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    last_login   TIMESTAMP    NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS game_sessions (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    user_id          INT          NOT NULL,
+    game_type        VARCHAR(50)  NOT NULL DEFAULT 'classic',
+    wpm              DECIMAL(6,2) NOT NULL DEFAULT 0,
+    accuracy         DECIMAL(5,2) NOT NULL DEFAULT 0,
+    duration_seconds INT          NOT NULL DEFAULT 0,
+    chars_typed      INT          NOT NULL DEFAULT 0,
+    errors           INT          NOT NULL DEFAULT 0,
+    text_snippet     TEXT,
+    played_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_game (user_id, game_type),
+    INDEX idx_played_at (played_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS achievements (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    user_id         INT          NOT NULL,
+    achievement_key VARCHAR(100) NOT NULL,
+    earned_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_achievement (user_id, achievement_key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

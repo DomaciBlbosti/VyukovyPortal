@@ -1,0 +1,5 @@
+# Blokuj přímý přístup k config souborům z prohlížeče
+<FilesMatch "\.(php|lock)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
