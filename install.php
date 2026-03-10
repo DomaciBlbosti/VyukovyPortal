@@ -1,448 +1,410 @@
 <?php
 /**
- * TypeMaster — Instalační průvodce
- * Spusť jednou, pak smaž nebo přejmenuj!
+ * TypeMaster -- Instalacni pruvodce
  */
 
-// Pokud už je nainstalováno, blokuj
 if (file_exists(__DIR__ . '/config/installed.lock')) {
-    die('<div style="font-family:monospace;text-align:center;padding:4rem;color:#f87171;background:#0d1b2e;min-height:100vh">
-        <h1>⚠ TypeMaster je již nainstalován.</h1>
-        <p style="color:#94a3b8">Z bezpečnostních důvodů smaž soubor <code>config/installed.lock</code> pro opakovanou instalaci.</p>
-        <a href="index.php" style="color:#4ade80">→ Přejít na přihlášení</a>
-    </div>');
+    die('<div style="font-family:monospace;text-align:center;padding:4rem;color:#f87171;background:#0d1b2e;min-height:100vh">'
+      . '<h1>TypeMaster je jiz nainstalovan.</h1>'
+      . '<p style="color:#94a3b8">Smaz soubor <code>config/installed.lock</code> pro opakovani.</p>'
+      . '<a href="index.php" style="color:#4ade80">Prihlaseni</a></div>');
 }
 
 $step   = intval($_GET['step'] ?? 1);
 $errors = [];
-$ok     = true;
 
-// ═══════════════════════════════════════════════════════════════════════
-// KROK 1 — Kontrola požadavků
-// ═══════════════════════════════════════════════════════════════════════
+// ── Krok 1: pozadavky ────────────────────────────────────────────────────
 $checks = [
-    ['PHP ≥ 8.0',        version_compare(PHP_VERSION, '8.0.0', '>='),     PHP_VERSION],
-    ['Rozšíření PDO',    extension_loaded('pdo'),                          ''],
-    ['PDO MySQL driver', extension_loaded('pdo_mysql'),                    ''],
-    ['Rozšíření mbstring',extension_loaded('mbstring'),                    ''],
-    ['Zápis do config/', is_writable(__DIR__ . '/config'),                 ''],
+    ['PHP >= 8.0',         version_compare(PHP_VERSION, '8.0.0', '>='), PHP_VERSION],
+    ['PDO',                extension_loaded('pdo'),                       ''],
+    ['pdo_mysql',          extension_loaded('pdo_mysql'),                 ''],
+    ['mbstring',           extension_loaded('mbstring'),                  ''],
+    ['config/ zapisatelna',is_writable(__DIR__ . '/config'),              ''],
 ];
 $reqOk = array_reduce($checks, fn($c, $r) => $c && $r[1], true);
 
-// ═══════════════════════════════════════════════════════════════════════
-// KROK 2 — Zpracování formuláře databáze
-// ═══════════════════════════════════════════════════════════════════════
-$dbConfig  = [];
-$dbOk      = false;
-$dbMessage = '';
+// ── Krok 2: test DB ──────────────────────────────────────────────────────
+$dbOk = false; $dbMessage = '';
+// ── Auto-detekce BASE_URL ────────────────────────────────────────────────
+// install.php je v kořeni aplikace, takže dirname(SCRIPT_NAME) = cesta k aplikaci
+$autoBaseUrl = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+
+$dbConfig = [
+    'host'   => $_POST['db_host']   ?? 'localhost',
+    'port'   => $_POST['db_port']   ?? '3306',
+    'name'   => $_POST['db_name']   ?? 'typemaster',
+    'user'   => $_POST['db_user']   ?? '',
+    'pass'   => $_POST['db_pass']   ?? '',
+    'prefix' => $_POST['base_url']  ?? $autoBaseUrl,
+];
 
 if ($step === 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $dbConfig = [
-        'host'   => trim($_POST['db_host']   ?? 'localhost'),
-        'port'   => trim($_POST['db_port']   ?? '3306'),
-        'name'   => trim($_POST['db_name']   ?? 'typemaster'),
-        'user'   => trim($_POST['db_user']   ?? ''),
-        'pass'   => $_POST['db_pass']        ?? '',
-        'prefix' => trim($_POST['base_url']  ?? ''),
-    ];
-
-    // Otestuj připojení
     try {
-        $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};charset=utf8mb4";
+        $dsn = 'mysql:host=' . $dbConfig['host'] . ';port=' . $dbConfig['port'] . ';charset=utf8mb4';
         $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['pass'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_TIMEOUT => 5,
         ]);
-        $dbOk = true;
-        $dbMessage = '✔ Připojení k databázi úspěšné!';
+        $dbOk      = true;
+        $dbMessage = 'Pripojeni k databazi uspesne!';
     } catch (PDOException $e) {
-        $errors[]  = 'Připojení selhalo: ' . $e->getMessage();
-        $dbMessage = '✘ ' . $e->getMessage();
+        $errors[]  = 'Pripojeni selhalo: ' . $e->getMessage();
+        $dbMessage = $e->getMessage();
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// KROK 3 — Instalace
-// ═══════════════════════════════════════════════════════════════════════
+// ── Krok 3: instalace ────────────────────────────────────────────────────
 $installLog = [];
 $installOk  = false;
 
 if ($step === 3 && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Načti DB config z hidden polí
-    $dbConfig = [
-        'host'   => $_POST['db_host']   ?? 'localhost',
-        'port'   => $_POST['db_port']   ?? '3306',
-        'name'   => $_POST['db_name']   ?? 'typemaster',
-        'user'   => $_POST['db_user']   ?? '',
-        'pass'   => $_POST['db_pass']   ?? '',
-        'prefix' => $_POST['base_url']  ?? '',
-    ];
-    $adminUsername    = trim($_POST['admin_username']    ?? '');
-    $adminDisplayName = trim($_POST['admin_display']     ?? '');
-    $adminPassword    = $_POST['admin_password']         ?? '';
-    $adminPassword2   = $_POST['admin_password2']        ?? '';
+    $adminUsername    = trim($_POST['admin_username']  ?? '');
+    $adminDisplayName = trim($_POST['admin_display']   ?? '');
+    $adminPassword    = $_POST['admin_password']       ?? '';
+    $adminPassword2   = $_POST['admin_password2']      ?? '';
 
-    // Validace
-    if (!$adminUsername)              $errors[] = 'Zadej přihlašovací jméno admina.';
-    if (strlen($adminPassword) < 6)   $errors[] = 'Heslo musí mít alespoň 6 znaků.';
-    if ($adminPassword !== $adminPassword2) $errors[] = 'Hesla se neshodují.';
+    if (!$adminUsername)                    $errors[] = 'Zadej jmeno admina.';
+    if (strlen($adminPassword) < 6)         $errors[] = 'Heslo musi mit alespon 6 znaku.';
+    if ($adminPassword !== $adminPassword2) $errors[] = 'Hesla se neshoduji.';
 
     if (empty($errors)) {
         try {
-            // 1. Připoj se a vytvoř databázi
-            $dsn = "mysql:host={$dbConfig['host']};port={$dbConfig['port']};charset=utf8mb4";
+            // 1. Pripojeni + vytvoreni DB
+            $dsn = 'mysql:host=' . $dbConfig['host'] . ';port=' . $dbConfig['port'] . ';charset=utf8mb4';
             $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['pass'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbConfig['name']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-            $pdo->exec("USE `{$dbConfig['name']}`");
-            $installLog[] = ['✔', "Databáze „{$dbConfig['name']}\" vytvořena / existuje."];
+            $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $dbConfig['name'] . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+            $pdo->exec('USE `' . $dbConfig['name'] . '`');
+            $installLog[] = ['ok', 'Databaze ' . $dbConfig['name'] . ' vytvorena / existuje.'];
 
-            // 2. Vytvoř tabulky
+            // 2. Tabulky
             $schema = file_get_contents(__DIR__ . '/schema.sql');
-            // Spusť SQL příkazy jeden po jednom
             foreach (array_filter(array_map('trim', explode(';', $schema))) as $sql) {
                 if ($sql) $pdo->exec($sql);
             }
-            $installLog[] = ['✔', 'Tabulky (users, game_sessions, achievements) vytvořeny.'];
+            $installLog[] = ['ok', 'Tabulky vytvoreny (users, game_sessions, achievements).'];
 
-            // 3. Vytvoř admin účet
-            $hash = password_hash($adminPassword, PASSWORD_BCRYPT);
+            // 3. Admin ucet
             $dname = $adminDisplayName ?: $adminUsername;
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, display_name, is_admin) VALUES (?,?,?,1)');
-            $stmt->execute([$adminUsername, $hash, $dname]);
-            $installLog[] = ['✔', "Admin účet „$adminUsername" vytvořen."];
+            $pdo->prepare('INSERT INTO users (username, password_hash, display_name, is_admin) VALUES (?,?,?,1)')
+                ->execute([$adminUsername, password_hash($adminPassword, PASSWORD_BCRYPT), $dname]);
+            $installLog[] = ['ok', 'Admin ucet ' . $adminUsername . ' vytvoren.'];
 
-            // 4. Zapiš config/db.php
-            $dbPhp = "<?php\n// Databázové připojení — generováno instalačním průvodcem\nfunction getDB(): PDO {\n    static \$pdo;\n    if (\$pdo) return \$pdo;\n    \$dsn = 'mysql:host={$dbConfig['host']};port={$dbConfig['port']};dbname={$dbConfig['name']};charset=utf8mb4';\n    \$pdo = new PDO(\$dsn, " . var_export($dbConfig['user'], true) . ", " . var_export($dbConfig['pass'], true) . ", [\n        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,\n        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,\n    ]);\n    return \$pdo;\n}\n";
+            // 4. config/db.php
+            $host   = $dbConfig['host'];
+            $port   = $dbConfig['port'];
+            $dbname = $dbConfig['name'];
+            $user   = var_export($dbConfig['user'], true);
+            $pass   = var_export($dbConfig['pass'], true);
+            $dbPhp  = "<?php\nfunction getDB(): PDO {\n    static \$pdo;\n    if (\$pdo) return \$pdo;\n    \$pdo = new PDO('mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4', $user, $pass, [\n        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,\n        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,\n    ]);\n    return \$pdo;\n}\n";
             file_put_contents(__DIR__ . '/config/db.php', $dbPhp);
-            $installLog[] = ['✔', 'Soubor config/db.php zapsán.'];
+            $installLog[] = ['ok', 'config/db.php zapsan.'];
 
-            // 5. Zapiš config/app.php
+            // 5. config/app.php
             $baseUrl = rtrim($dbConfig['prefix'], '/');
-            $appPhp  = "<?php\n// Aplikační konfigurace — generováno instalačním průvodcem\ndefine('BASE_URL', " . var_export($baseUrl, true) . ");\ndefine('APP_NAME', 'TypeMaster');\ndefine('APP_VERSION', '2.0');\n";
+            $bue     = var_export($baseUrl, true);
+            $appPhp  = "<?php\ndefine('BASE_URL', $bue);\ndefine('APP_NAME', 'TypeMaster');\ndefine('APP_VERSION', '2.0');\n";
             file_put_contents(__DIR__ . '/config/app.php', $appPhp);
-            $installLog[] = ['✔', "Soubor config/app.php zapsán (BASE_URL = \"$baseUrl\")."];
+            $installLog[] = ['ok', 'config/app.php zapsan (BASE_URL="' . $baseUrl . '").'];
+            // Ověření zápisu
+            $written = file_get_contents(__DIR__ . '/config/app.php');
+            if (strpos($written, $bue) === false) {
+                throw new Exception('config/app.php nebyl zapsan spravne! Zkontroluj prava ke slozce config/');
+            }
 
-            // 6. Napiš zámek
-            file_put_contents(__DIR__ . '/config/installed.lock', date('Y-m-d H:i:s') . ' - installed by wizard');
-            $installLog[] = ['✔', 'Zámek installed.lock vytvořen.'];
+            // 6. Zamek
+            file_put_contents(__DIR__ . '/config/installed.lock', date('Y-m-d H:i:s') . ' - installed');
+            $installLog[] = ['ok', 'installed.lock vytvoren.'];
 
-            $installOk = true;
-            $installLog[] = ['🎉', 'Instalace dokončena!'];
+            $installOk    = true;
+            $installLog[] = ['yay', 'Instalace dokoncena!'];
 
         } catch (Exception $e) {
-            $installLog[] = ['✘', 'Chyba: ' . $e->getMessage()];
+            $installLog[] = ['err', 'Chyba: ' . $e->getMessage()];
             $errors[]      = $e->getMessage();
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// HTML
-// ═══════════════════════════════════════════════════════════════════════
-?><!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TypeMaster — Instalace</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TypeMaster &mdash; Instalace</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-    --bg:      #0d1b2e; --bg2: #112240; --bg3: #162d4f;
-    --text:    #e4e4f0; --muted: #8892a4; --border: #1e3a5f;
-    --accent:  #4ade80; --accent2: #60a5fa;
-    --danger:  #f87171; --warn: #fb923c;
-    --mono:    'Space Mono', 'Courier New', monospace;
-    --sans:    'IBM Plex Sans', system-ui, sans-serif;
-    --radius:  10px;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1b2e;--bg2:#112240;--bg3:#162d4f;
+  --text:#e4e4f0;--muted:#8892a4;--border:#1e3a5f;
+  --green:#4ade80;--blue:#60a5fa;--red:#f87171;--orange:#fb923c;--gold:#fbbf24;
+  --mono:'Space Mono','Courier New',monospace;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
 }
-body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
-.page { max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem; }
-.logo { text-align: center; margin-bottom: 2.5rem; }
-.logo-icon { font-size: 3rem; }
-.logo-title { font-family: var(--mono); font-size: 1.8rem; color: var(--accent); margin-top: .5rem; }
-.logo-sub { color: var(--muted); font-size: .95rem; margin-top: .3rem; }
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+.page{max-width:660px;margin:0 auto;padding:3rem 1.5rem}
+.logo{text-align:center;margin-bottom:2.5rem}
+.logo-icon{font-size:3rem}
+.logo-title{font-family:var(--mono);font-size:1.8rem;color:var(--green);margin-top:.5rem}
+.logo-sub{color:var(--muted);font-size:.9rem;margin-top:.3rem}
 /* Stepper */
-.stepper { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 2.5rem; }
-.step-item { display: flex; align-items: center; gap: .5rem; }
-.step-num {
-    width: 2rem; height: 2rem; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono); font-size: .85rem; font-weight: 700;
-    background: var(--bg3); border: 2px solid var(--border); color: var(--muted);
-    transition: all .3s;
-}
-.step-num.active  { background: var(--accent2); border-color: var(--accent2); color: #000; }
-.step-num.done    { background: var(--accent);  border-color: var(--accent);  color: #000; }
-.step-label { font-size: .8rem; color: var(--muted); }
-.step-label.active { color: var(--text); }
-.step-line { width: 40px; height: 2px; background: var(--border); margin: 0 .5rem; }
+.stepper{display:flex;align-items:center;justify-content:center;margin-bottom:2.5rem;flex-wrap:wrap;gap:.25rem}
+.snum{width:2rem;height:2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:.8rem;font-weight:700;
+  background:var(--bg3);border:2px solid var(--border);color:var(--muted)}
+.snum.active{background:var(--blue);border-color:var(--blue);color:#000}
+.snum.done{background:var(--green);border-color:var(--green);color:#000}
+.slabel{font-size:.75rem;color:var(--muted);margin:0 .3rem}
+.slabel.active{color:var(--text)}
+.sline{width:30px;height:2px;background:var(--border)}
 /* Card */
-.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 2rem; }
-.card-title { font-family: var(--mono); font-size: 1.15rem; margin-bottom: 1.5rem; }
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:2rem;margin-bottom:1.5rem}
+.card-title{font-family:var(--mono);font-size:1.1rem;margin-bottom:1.5rem;color:var(--text)}
 /* Form */
-.field { margin-bottom: 1.1rem; }
-.field label { display: block; font-size: .8rem; color: var(--muted); font-family: var(--mono); margin-bottom: .35rem; }
-.field input[type=text], .field input[type=password], .field input[type=number] {
-    width: 100%; padding: .7rem 1rem; background: var(--bg3);
-    border: 1px solid var(--border); border-radius: var(--radius);
-    color: var(--text); font-size: .95rem; font-family: var(--sans);
-    transition: border-color .2s;
-}
-.field input:focus { border-color: var(--accent2); outline: none; }
-.field .hint { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:.78rem;color:var(--muted);font-family:var(--mono);margin-bottom:.3rem}
+.field input{width:100%;padding:.65rem 1rem;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:.95rem;transition:border-color .2s}
+.field input:focus{border-color:var(--blue);outline:none}
+.field .hint{font-size:.73rem;color:var(--muted);margin-top:.25rem}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 /* Buttons */
-.btn-primary {
-    display: inline-block; padding: .8rem 2rem; background: var(--accent2);
-    color: #000; border: none; border-radius: var(--radius); font-family: var(--mono);
-    font-size: .95rem; font-weight: 700; cursor: pointer; text-decoration: none;
-    transition: opacity .2s;
-}
-.btn-primary:hover { opacity: .85; }
-.btn-secondary {
-    display: inline-block; padding: .8rem 1.5rem; background: transparent;
-    color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius);
-    font-family: var(--mono); font-size: .95rem; cursor: pointer; text-decoration: none;
-    transition: border-color .2s, color .2s;
-}
-.btn-secondary:hover { border-color: var(--text); color: var(--text); }
-.btn-row { display: flex; gap: 1rem; align-items: center; margin-top: 1.5rem; }
+.btn{display:inline-block;padding:.75rem 1.75rem;border-radius:8px;font-family:var(--mono);
+  font-size:.9rem;font-weight:700;cursor:pointer;border:none;text-decoration:none;transition:opacity .2s}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--blue);color:#000}
+.btn-secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-row{display:flex;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap}
 /* Checks */
-.check-list { list-style: none; display: flex; flex-direction: column; gap: .6rem; }
-.check-item { display: flex; align-items: center; gap: .75rem; font-size: .9rem; }
-.check-icon { font-size: 1rem; width: 1.25rem; text-align: center; }
-.check-ok   .check-icon { color: var(--accent); }
-.check-fail .check-icon { color: var(--danger); }
-.check-name { color: var(--muted); font-family: var(--mono); font-size: .8rem; }
-.check-val  { margin-left: auto; font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+.checks{list-style:none;display:flex;flex-direction:column;gap:.6rem}
+.checks li{display:flex;align-items:center;gap:.6rem;font-size:.88rem}
+.ci{width:1.2rem;text-align:center}
+.ci.ok{color:var(--green)} .ci.fail{color:var(--red)}
+.cv{margin-left:auto;font-family:var(--mono);font-size:.72rem;color:var(--muted)}
 /* Alerts */
-.alert { padding: .85rem 1.1rem; border-radius: var(--radius); margin-bottom: 1.25rem; font-size: .9rem; }
-.alert-err  { background: rgba(248,113,113,.1); border: 1px solid var(--danger); color: var(--danger); }
-.alert-ok   { background: rgba(74,222,128,.1);  border: 1px solid var(--accent); color: var(--accent); }
-.alert-info { background: rgba(96,165,250,.1);  border: 1px solid var(--accent2); color: var(--accent2); }
+.alert{padding:.8rem 1rem;border-radius:8px;margin-bottom:1.25rem;font-size:.88rem}
+.alert-err {background:rgba(248,113,113,.1);border:1px solid var(--red);  color:var(--red)}
+.alert-ok  {background:rgba(74,222,128,.1); border:1px solid var(--green);color:var(--green)}
+.alert-info{background:rgba(96,165,250,.1); border:1px solid var(--blue); color:var(--blue)}
+hr{border:none;border-top:1px solid var(--border);margin:1.25rem 0}
 /* Log */
-.install-log { list-style: none; display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0; }
-.install-log li { font-family: var(--mono); font-size: .85rem; display: flex; gap: .75rem; }
-.log-icon { width: 1.25rem; }
-.log-icon.ok   { color: var(--accent); }
-.log-icon.err  { color: var(--danger); }
-.log-icon.yay  { color: #fbbf24; }
-/* Section divider */
-.section-divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+.log{list-style:none;display:flex;flex-direction:column;gap:.45rem;margin:1rem 0}
+.log li{display:flex;gap:.6rem;font-family:var(--mono);font-size:.82rem}
+.li-ok {color:var(--green)} .li-err{color:var(--red)} .li-yay{color:var(--gold)}
+/* Checklist */
+.checklist{list-style:none;display:flex;flex-direction:column;gap:.6rem;font-size:.85rem}
+.checklist li::before{content:'☑  ';color:var(--green)}
+code{background:var(--bg3);padding:.1rem .35rem;border-radius:4px;font-size:.82rem;color:var(--blue)}
+.center{text-align:center}
 </style>
 </head>
 <body>
 <div class="page">
 
 <div class="logo">
-    <div class="logo-icon">⌨</div>
-    <div class="logo-title">TypeMaster</div>
-    <div class="logo-sub">Instalační průvodce</div>
+  <div class="logo-icon">&#9000;</div>
+  <div class="logo-title">TypeMaster</div>
+  <div class="logo-sub">Instalacni pruvodce</div>
 </div>
 
 <!-- Stepper -->
 <div class="stepper">
-    <?php
-    $steps = ['Požadavky', 'Databáze', 'Instalace', 'Hotovo'];
-    foreach ($steps as $i => $label):
-        $n = $i + 1;
-        $cls = $n < $step ? 'done' : ($n === $step ? 'active' : '');
-        $icon = $n < $step ? '✔' : $n;
-    ?>
-    <?php if ($i > 0): ?><div class="step-line"></div><?php endif; ?>
-    <div class="step-item">
-        <div class="step-num <?= $cls ?>"><?= $icon ?></div>
-        <div class="step-label <?= $cls === 'active' ? 'active' : '' ?>"><?= $label ?></div>
-    </div>
-    <?php endforeach; ?>
+<?php
+$stepLabels = ['Pozadavky','Databaze','Instalace','Hotovo'];
+foreach ($stepLabels as $i => $lbl):
+    $n   = $i + 1;
+    $cls = $n < $step ? 'done' : ($n === $step ? 'active' : '');
+    $ico = $n < $step ? '&#10004;' : $n;
+?>
+<?php if ($i > 0): ?><div class="sline"></div><?php endif; ?>
+<div class="snum <?= $cls ?>"><?= $ico ?></div>
+<div class="slabel <?= $cls === 'active' ? 'active' : '' ?>"><?= $lbl ?></div>
+<?php endforeach; ?>
 </div>
 
 <?php if (!empty($errors)): ?>
-<div class="alert alert-err">
-    <?= implode('<br>', array_map('htmlspecialchars', $errors)) ?>
-</div>
+<div class="alert alert-err"><?= implode('<br>', array_map('htmlspecialchars', $errors)) ?></div>
 <?php endif; ?>
 
-<!-- ══ KROK 1: Požadavky ══════════════════════════════════════════════════ -->
 <?php if ($step === 1): ?>
+<!-- ── KROK 1 ── -->
 <div class="card">
-    <div class="card-title">🔍 Kontrola požadavků</div>
-    <ul class="check-list">
-        <?php foreach ($checks as [$name, $pass, $val]): ?>
-        <li class="check-item <?= $pass ? 'check-ok' : 'check-fail' ?>">
-            <span class="check-icon"><?= $pass ? '✔' : '✘' ?></span>
-            <span><?= $name ?></span>
-            <?php if ($val): ?><span class="check-val"><?= htmlspecialchars($val) ?></span><?php endif; ?>
-        </li>
-        <?php endforeach; ?>
-    </ul>
-
-    <hr class="section-divider">
-
-    <?php if ($reqOk): ?>
-    <div class="alert alert-ok">✔ Všechny požadavky splněny. Pokračuj dále.</div>
-    <a href="?step=2" class="btn-primary">Pokračovat →</a>
-    <?php else: ?>
-    <div class="alert alert-err">✘ Nesplněné požadavky. Oprav je před pokračováním.</div>
-    <?php endif; ?>
+  <div class="card-title">&#128269; Kontrola pozadavku</div>
+  <ul class="checks">
+  <?php foreach ($checks as [$name, $pass, $val]): ?>
+    <li>
+      <span class="ci <?= $pass ? 'ok' : 'fail' ?>"><?= $pass ? '&#10004;' : '&#10008;' ?></span>
+      <span><?= htmlspecialchars($name) ?></span>
+      <?php if ($val): ?><span class="cv"><?= htmlspecialchars($val) ?></span><?php endif; ?>
+    </li>
+  <?php endforeach; ?>
+  </ul>
+  <hr>
+  <?php if ($reqOk): ?>
+    <div class="alert alert-ok">Vsechny pozadavky splneny.</div>
+    <a href="?step=2" class="btn btn-primary">Pokracovat &rarr;</a>
+  <?php else: ?>
+    <div class="alert alert-err">Nesplnene pozadavky. Oprav je pred pokracovanim.</div>
+  <?php endif; ?>
 </div>
 
-<!-- ══ KROK 2: Databáze ═══════════════════════════════════════════════════ -->
 <?php elseif ($step === 2): ?>
+<!-- ── KROK 2 ── -->
 <div class="card">
-    <div class="card-title">🗄 Nastavení databáze</div>
-    <form method="post" action="?step=2">
-        <div class="field-row">
-            <div class="field">
-                <label>Hostname databáze</label>
-                <input type="text" name="db_host" value="<?= htmlspecialchars($_POST['db_host'] ?? 'localhost') ?>" required>
-                <div class="hint">Obvykle <code>localhost</code> nebo IP</div>
-            </div>
-            <div class="field">
-                <label>Port</label>
-                <input type="number" name="db_port" value="<?= htmlspecialchars($_POST['db_port'] ?? '3306') ?>" required>
-                <div class="hint">Výchozí MySQL port: 3306</div>
-            </div>
-        </div>
-        <div class="field">
-            <label>Název databáze</label>
-            <input type="text" name="db_name" value="<?= htmlspecialchars($_POST['db_name'] ?? 'typemaster') ?>" required>
-            <div class="hint">Databáze bude vytvořena automaticky (MySQL uživatel musí mít právo CREATE DATABASE)</div>
-        </div>
-        <div class="field-row">
-            <div class="field">
-                <label>Uživatel MySQL</label>
-                <input type="text" name="db_user" value="<?= htmlspecialchars($_POST['db_user'] ?? '') ?>" required autocomplete="username">
-            </div>
-            <div class="field">
-                <label>Heslo MySQL</label>
-                <input type="password" name="db_pass" value="<?= htmlspecialchars($_POST['db_pass'] ?? '') ?>" autocomplete="current-password">
-                <div class="hint">Může být prázdné</div>
-            </div>
-        </div>
-        <hr class="section-divider">
-        <div class="field">
-            <label>BASE_URL — URL cesta k aplikaci</label>
-            <input type="text" name="base_url" value="<?= htmlspecialchars($_POST['base_url'] ?? '') ?>" placeholder="např. /games nebo /typemaster nebo prázdné">
-            <div class="hint">
-                Příklady: <code>/games</code> → <code>http://localhost/games</code> &nbsp;|&nbsp;
-                prázdné → <code>http://localhost</code> &nbsp;|&nbsp;
-                <code>/typemaster</code> → <code>https://web.cz/typemaster</code>
-            </div>
-        </div>
-
-        <?php if ($dbOk): ?>
-        <div class="alert alert-ok"><?= htmlspecialchars($dbMessage) ?></div>
-        <div class="btn-row">
-            <button type="submit" class="btn-secondary">Otestovat znovu</button>
-            <button type="submit" formaction="?step=3" class="btn-primary">Pokračovat →</button>
-        </div>
-        <?php else: ?>
-        <div class="btn-row">
-            <a href="?step=1" class="btn-secondary">← Zpět</a>
-            <button type="submit" class="btn-primary">Otestovat připojení</button>
-        </div>
-        <?php endif; ?>
-    </form>
+  <div class="card-title">&#128451; Nastaveni databaze</div>
+  <form method="post" action="?step=2">
+    <div class="frow">
+      <div class="field">
+        <label>Hostname</label>
+        <input type="text" name="db_host" value="<?= htmlspecialchars($dbConfig['host']) ?>" required>
+        <div class="hint">Obvykle localhost</div>
+      </div>
+      <div class="field">
+        <label>Port</label>
+        <input type="number" name="db_port" value="<?= htmlspecialchars($dbConfig['port']) ?>" required>
+        <div class="hint">Vychozi: 3306</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Nazev databaze</label>
+      <input type="text" name="db_name" value="<?= htmlspecialchars($dbConfig['name']) ?>" required>
+      <div class="hint">Databaze bude vytvorena automaticky</div>
+    </div>
+    <div class="frow">
+      <div class="field">
+        <label>Uzivatel MySQL</label>
+        <input type="text" name="db_user" value="<?= htmlspecialchars($dbConfig['user']) ?>" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Heslo MySQL</label>
+        <input type="password" name="db_pass" value="<?= htmlspecialchars($dbConfig['pass']) ?>" autocomplete="current-password">
+        <div class="hint">Muze byt prazdne</div>
+      </div>
+    </div>
+    <hr>
+    <div class="field">
+      <label>BASE_URL &mdash; cesta k aplikaci</label>
+      <input type="text" name="base_url" id="baseUrlInput"
+             value="<?= htmlspecialchars($dbConfig['prefix']) ?>"
+             placeholder="napr. /games">
+      <div class="hint">
+        Auto-detekovano: <code id="autoUrl"><?= htmlspecialchars($autoBaseUrl ?: '/') ?></code>
+        &nbsp;&rarr;&nbsp;
+        Aplikace bude dostupna na:
+        <code id="previewUrl"><?= htmlspecialchars((isset($_SERVER['HTTPS'])?'https':'http').'://'.$_SERVER['HTTP_HOST'].($dbConfig['prefix'] ?: $autoBaseUrl).'/') ?></code>
+      </div>
+    </div>
+    <script>
+    document.getElementById('baseUrlInput').addEventListener('input', function() {
+        var host = '<?= (isset($_SERVER['HTTPS'])?'https':'http').'://'.$_SERVER['HTTP_HOST'] ?>';
+        document.getElementById('previewUrl').textContent = host + (this.value || '/') + '/';
+    });
+    </script>
+    <?php if ($dbOk): ?>
+      <div class="alert alert-ok">&#10004; <?= htmlspecialchars($dbMessage) ?></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-secondary">Otestovat znovu</button>
+        <button type="submit" formaction="?step=3" class="btn btn-primary">Pokracovat &rarr;</button>
+      </div>
+    <?php else: ?>
+      <div class="btn-row">
+        <a href="?step=1" class="btn btn-secondary">&larr; Zpet</a>
+        <button type="submit" class="btn btn-primary">Otestovat pripojeni</button>
+      </div>
+    <?php endif; ?>
+  </form>
 </div>
 
-<!-- ══ KROK 3: Instalace ══════════════════════════════════════════════════ -->
 <?php elseif ($step === 3): ?>
+<!-- ── KROK 3 ── -->
 <div class="card">
-    <div class="card-title">🚀 Instalace a vytvoření admin účtu</div>
+  <div class="card-title">&#128640; Instalace a admin ucet</div>
 
-    <?php if ($installOk): ?>
-    <!-- Úspěch — přesměruj na krok 4 -->
-    <ul class="install-log">
-        <?php foreach ($installLog as [$icon, $msg]): ?>
-        <li>
-            <span class="log-icon <?= $icon === '✔' ? 'ok' : ($icon === '✘' ? 'err' : 'yay') ?>"><?= $icon ?></span>
-            <span><?= htmlspecialchars($msg) ?></span>
-        </li>
-        <?php endforeach; ?>
+  <?php if ($installOk): ?>
+    <ul class="log">
+    <?php foreach ($installLog as [$t, $m]): ?>
+      <li><span class="li-<?= $t ?>"><?= $t === 'ok' ? '&#10004;' : ($t === 'yay' ? '&#127881;' : '&#10008;') ?></span><span><?= htmlspecialchars($m) ?></span></li>
+    <?php endforeach; ?>
     </ul>
-    <div class="alert alert-ok" style="margin-top:1rem">🎉 Instalace byla úspěšně dokončena!</div>
-    <a href="?step=4" class="btn-primary" style="margin-top:.5rem">Zobrazit výsledek →</a>
+    <div class="alert alert-ok" style="margin-top:1rem">&#127881; Instalace byla uspesne dokoncena!</div>
+    <a href="?step=4" class="btn btn-primary" style="margin-top:.5rem">Zobrazit vysledek &rarr;</a>
 
-    <?php else: ?>
-
+  <?php else: ?>
     <?php if (!empty($installLog)): ?>
-    <ul class="install-log" style="margin-bottom:1rem">
-        <?php foreach ($installLog as [$icon, $msg]): ?>
-        <li>
-            <span class="log-icon <?= $icon === '✔' ? 'ok' : 'err' ?>"><?= $icon ?></span>
-            <span><?= htmlspecialchars($msg) ?></span>
-        </li>
-        <?php endforeach; ?>
+    <ul class="log">
+    <?php foreach ($installLog as [$t, $m]): ?>
+      <li><span class="li-<?= $t ?>"><?= $t === 'ok' ? '&#10004;' : '&#10008;' ?></span><span><?= htmlspecialchars($m) ?></span></li>
+    <?php endforeach; ?>
     </ul>
     <?php endif; ?>
 
     <form method="post" action="?step=3">
-        <!-- Předej DB config skrytými poli -->
-        <?php foreach (['db_host','db_port','db_name','db_user','db_pass','base_url'] as $k): ?>
-        <input type="hidden" name="<?= $k ?>" value="<?= htmlspecialchars($_POST[$k] ?? '') ?>">
-        <?php endforeach; ?>
+      <?php
+      $hiddenMap = [
+          'db_host'  => $dbConfig['host'],
+          'db_port'  => $dbConfig['port'],
+          'db_name'  => $dbConfig['name'],
+          'db_user'  => $dbConfig['user'],
+          'db_pass'  => $dbConfig['pass'],
+          'base_url' => $dbConfig['prefix'],
+      ];
+      foreach ($hiddenMap as $k => $v): ?>
+      <input type="hidden" name="<?= $k ?>" value="<?= htmlspecialchars($v) ?>">
+      <?php endforeach; ?>
 
-        <div class="alert alert-info">
-            📦 Vytvoří se databáze, tabulky a tvůj admin účet. Formulář stačí odeslat jednou.
-        </div>
+      <div class="alert alert-info">&#128230; Vytvori se databaze, tabulky a tvuj admin ucet.</div>
 
-        <div class="field-row">
-            <div class="field">
-                <label>Přihlašovací jméno admina *</label>
-                <input type="text" name="admin_username" value="<?= htmlspecialchars($_POST['admin_username'] ?? 'admin') ?>" required autocomplete="off">
-            </div>
-            <div class="field">
-                <label>Zobrazované jméno</label>
-                <input type="text" name="admin_display" value="<?= htmlspecialchars($_POST['admin_display'] ?? '') ?>" placeholder="Admin">
-            </div>
+      <div class="frow">
+        <div class="field">
+          <label>Prihlasovaci jmeno admina *</label>
+          <input type="text" name="admin_username" value="<?= htmlspecialchars($_POST['admin_username'] ?? 'admin') ?>" required autocomplete="off">
         </div>
-        <div class="field-row">
-            <div class="field">
-                <label>Heslo admina * (min. 6 znaků)</label>
-                <input type="password" name="admin_password" required autocomplete="new-password">
-            </div>
-            <div class="field">
-                <label>Heslo znovu *</label>
-                <input type="password" name="admin_password2" required autocomplete="new-password">
-            </div>
+        <div class="field">
+          <label>Zobrazovane jmeno</label>
+          <input type="text" name="admin_display" value="<?= htmlspecialchars($_POST['admin_display'] ?? '') ?>" placeholder="Admin">
         </div>
-
-        <div class="btn-row">
-            <a href="?step=2" class="btn-secondary">← Zpět</a>
-            <button type="submit" class="btn-primary">🚀 Instalovat</button>
+      </div>
+      <div class="frow">
+        <div class="field">
+          <label>Heslo admina * (min. 6 znaku)</label>
+          <input type="password" name="admin_password" required autocomplete="new-password">
         </div>
+        <div class="field">
+          <label>Heslo znovu *</label>
+          <input type="password" name="admin_password2" required autocomplete="new-password">
+        </div>
+      </div>
+      <div class="btn-row">
+        <a href="?step=2" class="btn btn-secondary">&larr; Zpet</a>
+        <button type="submit" class="btn btn-primary">&#128640; Instalovat</button>
+      </div>
     </form>
-    <?php endif; ?>
+  <?php endif; ?>
 </div>
 
-<!-- ══ KROK 4: Hotovo ════════════════════════════════════════════════════ -->
 <?php elseif ($step === 4): ?>
-<div class="card" style="text-align:center">
-    <div style="font-size:3.5rem;margin-bottom:1rem">🎉</div>
-    <div class="card-title" style="font-size:1.4rem;color:var(--accent)">TypeMaster je nainstalován!</div>
-    <p style="color:var(--muted);margin-bottom:1.5rem;line-height:1.7">
-        Databáze, tabulky i admin účet byly úspěšně vytvořeny.<br>
-        Soubory konfigurace byly zapsány automaticky.
-    </p>
-
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.5rem;text-align:left">
-        <div style="font-family:var(--mono);font-size:.8rem;color:var(--muted);margin-bottom:.75rem">📋 BEZPEČNOSTNÍ CHECKLIST</div>
-        <ul style="list-style:none;display:flex;flex-direction:column;gap:.6rem;font-size:.875rem">
-            <li>☑ Smaž nebo přejmenuj soubor <code style="color:var(--accent2)">install.php</code> ze serveru</li>
-            <li>☑ Soubor <code style="color:var(--accent2)">config/installed.lock</code> chrání před opakovanou instalací</li>
-            <li>☑ Přihlašovací údaje k DB jsou uloženy v <code style="color:var(--accent2)">config/db.php</code></li>
-            <li>☑ Přidej <code style="color:var(--accent2)">.htaccess</code> ochranu pro složku <code style="color:var(--accent2)">config/</code></li>
-        </ul>
-    </div>
-
-    <a href="index.php" class="btn-primary" style="font-size:1.05rem;padding:1rem 2.5rem">
-        → Přejít na přihlášení
-    </a>
+<!-- ── KROK 4 ── -->
+<div class="card center">
+  <div style="font-size:3.5rem;margin-bottom:1rem">&#127881;</div>
+  <div class="card-title" style="font-size:1.4rem;color:var(--green);justify-content:center;display:flex">TypeMaster je nainstalovan!</div>
+  <p style="color:var(--muted);margin-bottom:1.5rem;line-height:1.7">
+    Databaze, tabulky i admin ucet byly uspesne vytvoreny.<br>
+    Konfiguraci soubory byly zapsany automaticky.
+  </p>
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
+    <div style="font-family:var(--mono);font-size:.75rem;color:var(--muted);margin-bottom:.75rem">BEZPECNOSTNI CHECKLIST</div>
+    <ul class="checklist">
+      <li>Smaz nebo prejmenuj <code>install.php</code> ze serveru</li>
+      <li>Slozka <code>config/</code> je chranena <code>.htaccess</code></li>
+      <li><code>config/installed.lock</code> brani opakovane instalaci</li>
+    </ul>
+  </div>
+  <a href="index.php" class="btn btn-primary" style="font-size:1rem;padding:1rem 2.5rem">
+    &rarr; Prihlaseni
+  </a>
 </div>
+
 <?php endif; ?>
 
-</div><!-- /page -->
+</div>
 </body>
 </html>
