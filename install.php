@@ -89,26 +89,26 @@ if ($step === 3 && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ->execute([$adminUsername, password_hash($adminPassword, PASSWORD_BCRYPT), $dname]);
             $installLog[] = ['ok', 'Admin ucet ' . $adminUsername . ' vytvoren.'];
 
-            // 4. config/db.php
+            // 4. config/db.local.php
             $host   = $dbConfig['host'];
             $port   = $dbConfig['port'];
             $dbname = $dbConfig['name'];
             $user   = var_export($dbConfig['user'], true);
             $pass   = var_export($dbConfig['pass'], true);
-            $dbPhp  = "<?php\nfunction getDB(): PDO {\n    static \$pdo;\n    if (\$pdo) return \$pdo;\n    \$pdo = new PDO('mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4', $user, $pass, [\n        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,\n        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,\n    ]);\n    return \$pdo;\n}\n";
-            file_put_contents(__DIR__ . '/config/db.php', $dbPhp);
-            $installLog[] = ['ok', 'config/db.php zapsan.'];
+            $dbPhp  = "<?php\nfunction getLocalDB(): PDO {\n    return new PDO('mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4', $user, $pass, [\n        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,\n        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,\n    ]);\n}\n";
+            file_put_contents(__DIR__ . '/config/db.local.php', $dbPhp);
+            $installLog[] = ['ok', 'config/db.local.php zapsan.'];
 
-            // 5. config/app.php
+            // 5. config/app.local.php
             $baseUrl = rtrim($dbConfig['prefix'], '/');
             $bue     = var_export($baseUrl, true);
             $appPhp  = "<?php\ndefine('BASE_URL', $bue);\ndefine('APP_NAME', 'TypeMaster');\ndefine('APP_VERSION', '2.0');\n";
-            file_put_contents(__DIR__ . '/config/app.php', $appPhp);
-            $installLog[] = ['ok', 'config/app.php zapsan (BASE_URL="' . $baseUrl . '").'];
+            file_put_contents(__DIR__ . '/config/app.local.php', $appPhp);
+            $installLog[] = ['ok', 'config/app.local.php zapsan (BASE_URL="' . $baseUrl . '").'];
             // Ověření zápisu
-            $written = file_get_contents(__DIR__ . '/config/app.php');
+            $written = file_get_contents(__DIR__ . '/config/app.local.php');
             if (strpos($written, $bue) === false) {
-                throw new Exception('config/app.php nebyl zapsan spravne! Zkontroluj prava ke slozce config/');
+                throw new Exception('config/app.local.php nebyl zapsan spravne! Zkontroluj prava ke slozce config/');
             }
 
             // 6. Zamek

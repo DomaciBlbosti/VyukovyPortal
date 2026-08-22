@@ -1,0 +1,8 @@
+.git
+.github
+*.md
+.env
+.env.example
+config/db.local.php
+config/app.local.php
+config/installed.lock

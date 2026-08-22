@@ -1,0 +1,54 @@
+# Compose pro TrueNAS SCALE → Apps → Discover Apps → Install via YAML (custom app).
+# Vlož obsah tohoto souboru do UI a uprav hesla v environment (UI nečte .env).
+# Image postaví GitHub Actions do GHCR po pushi do main (viz .github/workflows/docker-image.yml).
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: typemaster
+      MARIADB_USER: typemaster
+      MARIADB_PASSWORD: typemasterVychoziHeslo
+      MARIADB_ROOT_PASSWORD: typemasterVychoziHesloRoot
+    command:
+      - '--innodb-buffer-pool-size=128M'
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD
+        - healthcheck.sh
+        - '--connect'
+        - '--innodb_initialized'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  app:
+    image: ghcr.io/domaciblbosti/vyukovyportal:latest
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '8090:80'
+    environment:
+      DB_HOST: db
+      DB_PORT: '3306'
+      DB_NAME: typemaster
+      DB_USER: typemaster
+      DB_PASSWORD: typemasterVychoziHeslo
+      BASE_URL: ''
+      ADMIN_USERNAME: admin
+      # Nastav! Jinak se založí admin s heslem admin123.
+      ADMIN_PASSWORD: ''
+      UPDATE_ON_START: 'true'
+      REPO_URL: https://github.com/DomaciBlbosti/VyukovyPortal.git
+      REPO_BRANCH: main
+    volumes:
+      - app_code:/var/www/html
+
+volumes:
+  db_data:
+  app_code:

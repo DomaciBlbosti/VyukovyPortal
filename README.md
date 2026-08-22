@@ -2,7 +2,19 @@
 
 Webová aplikace pro trénink psaní na klávesnici. Apache / PHP 8+ / MySQL 8+.
 
-## Rychlý start
+## 🐳 TrueNAS / Docker (doporučeno)
+
+Aplikace běží jako TrueNAS custom app se self-update z Gitu — viz
+**[DEPLOY-TRUENAS.md](DEPLOY-TRUENAS.md)**. Zkráceně:
+
+```bash
+cp .env.example .env   # uprav hesla
+docker compose up -d
+```
+
+Databáze i admin účet se založí samy, instalační průvodce se nepoužívá.
+
+## Rychlý start (klasický hosting)
 
 ### 1. Databáze
 ```sql
