@@ -31,10 +31,9 @@ if (!$pdo) {
 }
 
 $schema = file_get_contents(__DIR__ . '/../schema.sql');
-foreach (array_filter(array_map('trim', preg_split('/;\s*\n/', $schema))) as $sql) {
-    if ($sql !== '' && !str_starts_with($sql, '--')) {
-        $pdo->exec($sql);
-    }
+$schema = preg_replace('/^\s*--.*$/m', '', $schema); // odstraň komentářové řádky
+foreach (array_filter(array_map('trim', explode(';', $schema))) as $sql) {
+    $pdo->exec($sql);
 }
 echo "[db] schéma připraveno\n";
 
