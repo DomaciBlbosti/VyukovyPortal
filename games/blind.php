@@ -93,5 +93,5 @@ include __DIR__ . '/../includes/header.php';
 const GAME_TEXT = <?= json_encode($text) ?>;
 const SAVE_URL  = '<?= BASE_URL ?>/games/blind.php';
 </script>
-<script src="<?= BASE_URL ?>/js/blind_game.js"></script>
+<script src="<?= asset_url('/js/blind_game.js') ?>"></script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

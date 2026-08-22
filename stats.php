@@ -129,6 +129,6 @@ $hours   = intdiv($minutes, 60);
 <?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-<script src="<?= BASE_URL ?>/js/charts.js"></script>
+<script src="<?= asset_url('/js/charts.js') ?>"></script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

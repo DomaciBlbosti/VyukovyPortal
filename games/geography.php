@@ -465,7 +465,7 @@ include __DIR__ . '/../includes/header.php';
 const GEO_QUESTIONS = <?= json_encode(array_values($questions)) ?>;
 const SAVE_URL = '<?= BASE_URL ?>/games/geography.php';
 </script>
-<script src="<?= BASE_URL ?>/js/geo_mc.js"></script>
+<script src="<?= asset_url('/js/geo_mc.js') ?>"></script>
 
 <?php else: ?>
 <!-- ══ SLEPÉ MAPY ════════════════════════════════════════════════════════════ -->
@@ -539,7 +539,7 @@ const SAVE_URL   = '<?= BASE_URL ?>/games/geography.php';
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="<?= BASE_URL ?>/js/blind_map.js"></script>
+<script src="<?= asset_url('/js/blind_map.js') ?>"></script>
 <?php endif; ?>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

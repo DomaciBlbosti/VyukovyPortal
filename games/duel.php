@@ -169,5 +169,5 @@ include __DIR__ . '/../includes/header.php';
 const DUEL_TEXT = <?= json_encode($text) ?>;
 const SAVE_URL  = '<?= BASE_URL ?>/games/duel.php';
 </script>
-<script src="<?= BASE_URL ?>/js/duel_game.js"></script>
+<script src="<?= asset_url('/js/duel_game.js') ?>"></script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

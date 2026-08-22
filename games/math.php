@@ -177,8 +177,8 @@ const MATH_EXAMPLES = <?= json_encode($examples) ?>;
 const SAVE_URL      = '<?= BASE_URL ?>/games/math.php';
 </script>
 <?php if ($mode === 'input'): ?>
-<script src="<?= BASE_URL ?>/js/math_game.js"></script>
+<script src="<?= asset_url('/js/math_game.js') ?>"></script>
 <?php else: ?>
-<script src="<?= BASE_URL ?>/js/math_choice.js"></script>
+<script src="<?= asset_url('/js/math_choice.js') ?>"></script>
 <?php endif; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
