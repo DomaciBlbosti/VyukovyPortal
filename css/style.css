@@ -764,37 +764,33 @@ a:hover { text-decoration: underline; }
 .math-dot.dot-ok  { background: var(--accent); border-color: var(--accent); }
 .math-dot.dot-err { background: var(--danger); border-color: var(--danger); }
 
-/* ─── Matematika — výběr ze 6 možností ──────────────── */
+/* ─── Matematika — výběr ze 6 možností (mřížka 3×2) ─── */
 .math-choice-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: .65rem;
+    gap: .75rem;
     margin-bottom: 1rem;
 }
 .math-choice-btn {
-    display: flex; align-items: center; justify-content: center; gap: .6rem;
-    padding: 1rem .5rem;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1.4rem .5rem;
     background: var(--bg3);
-    border: 1px solid var(--border);
+    border: 2px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
     font-family: var(--font-mono);
-    font-size: 1.25rem;
+    font-size: 1.7rem;
     font-weight: 700;
     cursor: pointer;
     transition: border-color .15s, background .15s;
 }
 .math-choice-btn:hover:not(:disabled) { border-color: var(--accent2); background: var(--bg2); }
 .math-choice-btn:disabled { cursor: default; }
-.math-choice-btn .mc-key { font-weight: 400; }
-.math-choice-btn.choice-correct { border-color: var(--accent); background: rgba(74,222,128,.12); }
-.math-choice-btn.choice-correct .mc-key { background: var(--accent); color: #000; border-color: var(--accent); }
-.math-choice-btn.choice-wrong { border-color: var(--danger); background: rgba(248,113,113,.12); }
-.math-choice-btn.choice-wrong .mc-key { background: var(--danger); color: #fff; border-color: var(--danger); }
+.math-choice-btn.choice-correct { border-color: var(--accent); background: rgba(74,222,128,.15); color: var(--accent); }
+.math-choice-btn.choice-wrong { border-color: var(--danger); background: rgba(248,113,113,.15); color: var(--danger); }
 @media (max-width: 640px) {
-    /* 2 sloupce a větší dotykové plochy na mobilu */
-    .math-choice-grid { grid-template-columns: repeat(2, 1fr); }
-    .math-choice-btn { padding: 1.1rem .5rem; }
+    .math-choice-grid { gap: .6rem; }
+    .math-choice-btn { padding: 1.25rem .25rem; font-size: 1.5rem; }
 }
 
 /* ─── Mode tabs (Zeměpis) ────────────────────────── */

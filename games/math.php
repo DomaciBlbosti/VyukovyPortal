@@ -148,7 +148,7 @@ include __DIR__ . '/../includes/header.php';
         <button id="startBtn" class="btn-primary">Začít ▶</button>
     </div>
     <div style="text-align:center;margin-bottom:.75rem;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">
-        Klávesy <kbd>1</kbd>–<kbd>6</kbd> nebo klepnutí
+        Klepni na správný výsledek (na počítači i klávesy 1–6 zleva)
     </div>
     <?php endif; ?>
 
