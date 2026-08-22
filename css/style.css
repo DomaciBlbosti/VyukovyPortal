@@ -60,10 +60,24 @@ a:hover { text-decoration: underline; }
     top: 0;
     z-index: 100;
 }
-.nav-brand { display: flex; align-items: center; gap: .5rem; margin-right: auto; }
+.nav-brand { display: flex; align-items: center; gap: .5rem; }
 .nav-logo  { font-size: 1.4rem; }
 .nav-title { font-family: var(--font-mono); font-weight: 700; color: var(--accent); letter-spacing: .05em; }
+.nav-toggle {
+    display: none;
+    margin-left: auto;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: .45rem .7rem;
+    cursor: pointer;
+}
+.nav-menu { display: flex; align-items: center; flex: 1; gap: 2rem; }
 .nav-links { display: flex; gap: .25rem; }
+.nav-menu .nav-user { margin-left: auto; }
 .nav-link  { padding: .4rem .85rem; border-radius: 6px; color: var(--muted); font-size: .875rem; transition: all .2s; }
 .nav-link:hover, .nav-link.active { background: var(--bg3); color: var(--text); text-decoration: none; }
 .nav-user  { display: flex; align-items: center; gap: 1rem; font-size: .875rem; }
@@ -115,6 +129,59 @@ a:hover { text-decoration: underline; }
 .login-logo   { font-size: 3rem; margin-bottom: .5rem; }
 .login-title  { font-family: var(--font-mono); font-size: 1.8rem; color: var(--accent); }
 .login-subtitle { color: var(--muted); font-size: .9rem; }
+
+/* Přihlašovací formulář (index.php) */
+.login-container {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 400px;
+    margin: 1rem;
+}
+.login-logo  { text-align: center; margin-bottom: 2rem; }
+.login-icon  { font-size: 3rem; display: block; margin-bottom: .5rem; }
+.login-sub   { color: var(--muted); font-size: .9rem; }
+.login-error {
+    background: rgba(248,113,113,.1);
+    border: 1px solid rgba(248,113,113,.3);
+    color: var(--danger);
+    padding: .75rem 1rem;
+    border-radius: var(--radius);
+    font-size: .875rem;
+    margin-bottom: 1rem;
+}
+.login-field { margin-bottom: 1.25rem; }
+.login-field label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .4rem; font-family: var(--font-mono); }
+.login-field input {
+    width: 100%;
+    padding: .8rem 1rem;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 16px; /* 16px = iOS při fokusu nezoomuje */
+    transition: border-color .2s;
+}
+.login-field input:focus { outline: none; border-color: var(--accent); }
+.login-btn {
+    width: 100%;
+    padding: .85rem 1.5rem;
+    margin-top: .5rem;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .2s, transform .2s;
+}
+.login-btn:hover { background: #22c55e; transform: translateY(-1px); }
 
 .form-group { margin-bottom: 1.25rem; }
 .form-group label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .4rem; font-family: var(--font-mono); }
@@ -382,14 +449,99 @@ a:hover { text-decoration: underline; }
 /* Footer */
 .site-footer { text-align: center; padding: 2rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--border); margin-top: 3rem; }
 
-/* Responsive */
+/* ─── Responsive — mobilní menu ─────────────────────── */
+@media (max-width: 768px) {
+    .navbar { padding: 0 1rem; gap: .75rem; }
+    .nav-toggle { display: inline-flex; }
+    .nav-menu {
+        display: none;
+        position: absolute;
+        top: 60px; left: 0; right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: .75rem;
+        background: var(--bg2);
+        border-bottom: 1px solid var(--border);
+        padding: 1rem;
+        box-shadow: var(--shadow);
+    }
+    .nav-menu.open { display: flex; }
+    .nav-links { flex-direction: column; gap: .25rem; }
+    .nav-link  { padding: .75rem 1rem; font-size: 1rem; }
+    .nav-menu .nav-user {
+        margin-left: 0;
+        flex-wrap: wrap;
+        gap: .6rem;
+        padding-top: .75rem;
+        border-top: 1px solid var(--border);
+    }
+    .btn-passwd, .btn-logout { padding: .55rem 1rem; font-size: .875rem; }
+}
+
+/* ─── Responsive — obsah a hry ──────────────────────── */
 @media (max-width: 640px) {
     .login-wrapper { grid-template-columns: 1fr; }
     .login-decoration { display: none; }
-    .navbar { padding: 0 1rem; gap: 1rem; }
-    .nav-links { display: none; }
-    .results-stats { gap: 1.5rem; }
-    .result-value { font-size: 1.8rem; }
+
+    .main-content { padding: 1.5rem 1rem 3rem; }
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.5rem; }
+
+    /* Herní panely */
+    .game-container, .map-game-wrapper { padding: 1.25rem 1rem; }
+    .game-stats-bar, .map-stats-bar { gap: .5rem 1.25rem; flex-wrap: wrap; }
+    .gstat-value  { font-size: 1.4rem; }
+    .accent-big   { font-size: 1.8rem !important; }
+    .typing-text  { font-size: 1.05rem; line-height: 1.8; }
+    .typing-text-wrapper, .timed-words-wrapper { padding: 1rem; }
+    .timed-word   { font-size: 1rem; }
+    .math-question { font-size: 1.6rem; }
+
+    /* Input + tlačítka pod sebe, pohodlné na dotyk */
+    .typing-input-wrapper { flex-wrap: wrap; }
+    .typing-input { flex: 1 1 100%; font-size: 16px; } /* 16px = iOS nezoomuje */
+    .typing-input-wrapper .btn-primary,
+    .typing-input-wrapper .btn-secondary { flex: 1; text-align: center; }
+
+    /* Výsledky */
+    .results-panel { padding: 1.5rem 1rem; }
+    .results-stats { gap: 1rem 1.5rem; flex-wrap: wrap; }
+    .result-value  { font-size: 1.8rem; }
+    .results-actions { flex-wrap: wrap; }
+    .results-actions .btn-primary, .results-actions .btn-secondary { flex: 1 1 45%; text-align: center; }
+
+    /* Filtry se lámou místo přetékání */
+    .filter-group { flex-wrap: wrap; }
+
+    /* Proud slov v časovém závodu nesmí vytlačit input pod klávesnici */
+    .timed-words-wrapper { max-height: 8.5rem; }
+
+    /* Výběr lekcí — větší dotykové plochy */
+    .lesson-picker { padding: 1rem; gap: 1rem; }
+    .lesson-btn { width: 40px; height: 40px; font-size: .9rem; }
+    .lesson-info { flex-wrap: wrap; gap: .5rem; }
+    .filter-btn { padding: .5rem 1rem; }
+
+    /* Zeměpis */
+    .mode-tab { padding: .6rem 1rem; }
+    #mapLeaflet { height: min(420px, 52vh) !important; }
+    .mc-choice-btn { padding: 1rem 1.1rem; }
+    .mc-choice-btn:hover:not(:disabled) { transform: none; }
+
+    /* Souboj */
+    .duel-players { flex-direction: column; align-items: stretch; gap: .75rem; }
+    .duel-vs { text-align: center; }
+    .duel-final-grid { grid-template-columns: 1fr; }
+
+    /* Tabulky nepřetékají */
+    .stats-table-section, .chart-section, .admin-card,
+    .leaderboard-grid section,
+    .main-content section:has(> .data-table) { overflow-x: auto; }
+}
+
+/* Dotyková zařízení — hover animace nemají smysl */
+@media (hover: none) {
+    .game-card:hover, .stat-card:hover, .lb-type-card:hover { transform: none; }
 }
 
 /* ─── Výběr lekcí ────────────────────────────────── */

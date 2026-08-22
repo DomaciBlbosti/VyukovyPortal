@@ -399,7 +399,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if ($mode === 'map'): ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
-#mapLeaflet { height: 460px; border-radius: 10px; background: #0d1b2e; }
+#mapLeaflet { height: min(460px, 60vh); border-radius: 10px; background: #0d1b2e; }
 .leaflet-tile-pane { filter: grayscale(40%) brightness(0.7) hue-rotate(200deg); }
 </style>
 <?php endif; ?>

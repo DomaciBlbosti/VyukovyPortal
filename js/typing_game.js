@@ -68,22 +68,27 @@
             timerInterval = setInterval(updateTimer, 500);
         }
 
-        const typedChar = input.value.slice(-1);
-        const expected  = GAME_TEXT[charIndex];
-
-        if (typedChar === undefined) return; // smazání
-
-        if (typedChar === expected) {
-            textChars[charIndex].classList.remove('cursor', 'error');
-            textChars[charIndex].classList.add('correct');
-        } else {
-            textChars[charIndex].classList.add('error');
-            errors++;
-        }
-
-        totalTyped++;
-        charIndex++;
+        // Mobilní klávesnice můžou vložit víc znaků najednou (nebo nic po
+        // smazání) — zpracuj všechny vložené znaky, prázdný input ignoruj.
+        const typedStr = input.value;
         input.value = '';
+        if (!typedStr) return;
+
+        for (const typedChar of typedStr) {
+            if (charIndex >= textChars.length) break;
+            const expected = GAME_TEXT[charIndex];
+
+            if (typedChar === expected) {
+                textChars[charIndex].classList.remove('cursor', 'error');
+                textChars[charIndex].classList.add('correct');
+            } else {
+                textChars[charIndex].classList.add('error');
+                errors++;
+            }
+
+            totalTyped++;
+            charIndex++;
+        }
 
         // Posun kurzoru
         textChars.forEach(c => c.classList.remove('cursor'));
