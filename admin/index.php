@@ -94,9 +94,12 @@ $pageTitle = 'Admin panel';
 include __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="page-header">
-    <h1>&#9881; <span class="accent">Admin</span> panel</h1>
-    <p class="page-subtitle">Sprava uzivatelu a systemu</p>
+<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+    <div>
+        <h1>&#9881; <span class="accent">Admin</span> panel</h1>
+        <p class="page-subtitle">Sprava uzivatelu a systemu</p>
+    </div>
+    <a href="<?= BASE_URL ?>/admin/system.php" class="btn-secondary">🔄 Systém &amp; aktualizace</a>
 </div>
 
 <?php if ($msg): ?>
