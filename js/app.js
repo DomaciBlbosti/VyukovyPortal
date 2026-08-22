@@ -29,22 +29,48 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Tlačítko "Instalovat" v menu — objeví se, když prohlížeč instalaci nabídne
+// Instalace: Chrome na Androidu už sám žádnou výzvu neukazuje (nabídku má
+// jen v menu ⋮), takže ji zobrazíme sami — banner dole + tlačítko v menu.
 let deferredInstall = null;
+
+function promptInstall() {
+    deferredInstall?.prompt();
+    deferredInstall = null;
+    hideInstallUI();
+}
+
+function hideInstallUI() {
+    document.getElementById('installBanner')?.remove();
+    const btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'none';
+}
+
+function showInstallBanner() {
+    if (document.getElementById('installBanner')) return;
+    try { if (localStorage.getItem('installBannerDismissed')) return; } catch {}
+    const b = document.createElement('div');
+    b.id = 'installBanner';
+    b.className = 'install-banner';
+    b.innerHTML =
+        '<span class="install-banner-text">📲 Přidej si TypeMaster na plochu jako aplikaci</span>' +
+        '<button class="btn-primary install-banner-btn" type="button">Instalovat</button>' +
+        '<button class="install-banner-close" type="button" aria-label="Zavřít">✕</button>';
+    b.querySelector('.install-banner-btn').addEventListener('click', promptInstall);
+    b.querySelector('.install-banner-close').addEventListener('click', () => {
+        try { localStorage.setItem('installBannerDismissed', '1'); } catch {}
+        b.remove();
+    });
+    document.body.appendChild(b);
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstall = e;
     const btn = document.getElementById('installBtn');
     if (btn) {
         btn.style.display = '';
-        btn.addEventListener('click', async () => {
-            btn.style.display = 'none';
-            deferredInstall?.prompt();
-            deferredInstall = null;
-        }, { once: true });
+        btn.addEventListener('click', promptInstall, { once: true });
     }
+    showInstallBanner();
 });
-window.addEventListener('appinstalled', () => {
-    const btn = document.getElementById('installBtn');
-    if (btn) btn.style.display = 'none';
-});
+window.addEventListener('appinstalled', hideInstallUI);

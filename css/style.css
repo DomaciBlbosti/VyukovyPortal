@@ -449,6 +449,33 @@ a:hover { text-decoration: underline; }
 /* Footer */
 .site-footer { text-align: center; padding: 2rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--border); margin-top: 3rem; }
 
+/* ─── Banner „Nainstalovat jako aplikaci" ───────────── */
+.install-banner {
+    position: fixed;
+    left: .75rem; right: .75rem;
+    bottom: calc(.75rem + env(safe-area-inset-bottom, 0px));
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    background: var(--bg2);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: .8rem 1rem;
+    box-shadow: var(--shadow);
+    animation: fadeInUp .4s ease both;
+}
+.install-banner-text { flex: 1; font-size: .875rem; }
+.install-banner-btn { padding: .5rem 1rem; font-size: .85rem; white-space: nowrap; }
+.install-banner-close {
+    background: none; border: none; color: var(--muted);
+    font-size: 1rem; cursor: pointer; padding: .25rem .4rem;
+}
+.install-banner-close:hover { color: var(--text); }
+@media (min-width: 700px) {
+    .install-banner { left: auto; right: 1.5rem; max-width: 420px; }
+}
+
 /* ─── Responsive — mobilní menu ─────────────────────── */
 @media (max-width: 768px) {
     .navbar { padding: 0 1rem; gap: .75rem; }
