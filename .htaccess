@@ -11,13 +11,28 @@ DirectoryIndex index.php
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
-# Cache pro statické soubory
+# Cache pro statické soubory.
+# POZOR: js/css NEMAJÍ hash ve jméně a web běží za Cloudflare, který
+# ctí tyto hlavičky — dlouhá expirace by po deployi rozdávala staré
+# soubory (browser i CF edge). Proto jen krátká revalidace.
 <IfModule mod_expires.c>
     ExpiresActive On
-    ExpiresByType text/css         "access plus 1 week"
-    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/css         "access plus 10 minutes"
+    ExpiresByType application/javascript "access plus 10 minutes"
     ExpiresByType image/svg+xml    "access plus 1 month"
+    ExpiresByType image/png        "access plus 1 month"
 </IfModule>
+
+# Service worker a manifest se nesmí cachovat vůbec (jinak prohlížeč
+# ani Cloudflare nikdy nedostanou novou verzi appky)
+<FilesMatch "^(sw\.js|manifest\.php)$">
+    <IfModule mod_expires.c>
+        ExpiresActive Off
+    </IfModule>
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-store, no-cache, must-revalidate"
+    </IfModule>
+</FilesMatch>
 
 # Přesměrování na HTTPS (odkomentuj na produkci)
 # RewriteEngine On

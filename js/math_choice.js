@@ -36,10 +36,10 @@
         feedbackEl.className   = 'math-feedback';
         gridEl.innerHTML       = '';
 
-        ex.choices.forEach((choice, i) => {
+        ex.choices.forEach((choice) => {
             const btn = document.createElement('button');
             btn.className   = 'math-choice-btn';
-            btn.innerHTML   = `<span class="mc-key">${i + 1}</span><span class="math-choice-val">${choice}</span>`;
+            btn.textContent = choice;
             btn.dataset.val = choice;
             btn.addEventListener('click', () => pickAnswer(choice, btn));
             gridEl.appendChild(btn);
