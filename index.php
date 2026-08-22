@@ -24,11 +24,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111118">
 <title>TypeMaster — Přihlášení</title>
+<link rel="manifest" href="<?= BASE_URL ?>/manifest.php">
+<link rel="icon" type="image/png" href="<?= BASE_URL ?>/favicon.png">
+<link rel="apple-touch-icon" href="<?= BASE_URL ?>/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TypeMaster">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= BASE_URL ?>/css/style.css">
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () =>
+        navigator.serviceWorker.register('<?= BASE_URL ?>/sw.js').catch(() => {}));
+}
+</script>
 </head>
 <body class="login-page">
 <div class="login-container">

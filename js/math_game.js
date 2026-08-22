@@ -38,9 +38,13 @@
         renderDots();
     }
 
+    const submitBtn = document.getElementById('submitBtn');
+
     startBtn.addEventListener('click', () => {
         startBtn.style.display = 'none';
+        if (submitBtn) submitBtn.style.display = '';
         input.disabled = false;
+        input.focus();
         startTime = Date.now();
         timerInt  = setInterval(() => {
             document.getElementById('statTime').textContent = Math.floor((Date.now() - startTime) / 1000);
@@ -48,28 +52,33 @@
         showQuestion();
     });
 
+    function submitAnswer() {
+        if (current >= examples.length) return;
+        const val = input.value.trim();
+        if (!val) return;
+        const isOk = val === examples[current].a;
+        examples[current]._ok = isOk;
+
+        feedbackEl.textContent = isOk ? '✔ Správně!' : `✘ Správně: ${examples[current].a}`;
+        feedbackEl.className   = 'math-feedback ' + (isOk ? 'feedback-ok' : 'feedback-err');
+
+        if (isOk) correct++; else wrong++;
+        document.getElementById('statScore').textContent  = correct;
+        document.getElementById('statErrors').textContent = wrong;
+
+        current++;
+        setTimeout(showQuestion, isOk ? 400 : 900);
+    }
+
     input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            const val = input.value.trim();
-            if (!val) return;
-            const isOk = val === examples[current].a;
-            examples[current]._ok = isOk;
-
-            feedbackEl.textContent = isOk ? '✔ Správně!' : `✘ Správně: ${examples[current].a}`;
-            feedbackEl.className   = 'math-feedback ' + (isOk ? 'feedback-ok' : 'feedback-err');
-
-            if (isOk) correct++; else wrong++;
-            document.getElementById('statScore').textContent  = correct;
-            document.getElementById('statErrors').textContent = wrong;
-
-            current++;
-            setTimeout(showQuestion, isOk ? 400 : 900);
-        }
+        if (e.key === 'Enter') submitAnswer();
     });
+    submitBtn?.addEventListener('click', () => { submitAnswer(); input.focus(); });
 
     function finishGame() {
         clearInterval(timerInt);
         input.disabled = true;
+        if (submitBtn) submitBtn.style.display = 'none';
         const elapsed  = (Date.now() - startTime) / 1000;
         const accuracy = Math.round(correct / examples.length * 100);
         // WPM ekvivalent: každé číslo = 1 "slovo"

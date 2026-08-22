@@ -14,6 +14,18 @@ docker compose up -d
 
 Databáze i admin účet se založí samy, instalační průvodce se nepoužívá.
 
+## 📱 Mobil a instalace jako aplikace (PWA)
+
+Portál je optimalizovaný pro telefony a funguje jako **PWA** — na Androidu
+(Chrome) se dá nainstalovat jako aplikace:
+
+1. Otevři portál v Chrome (musí běžet na **HTTPS**).
+2. Klepni na **📲 Instalovat** v menu, nebo v menu Chromu vyber
+   „Přidat na plochu / Instalovat aplikaci“.
+3. Aplikace se objeví na ploše s vlastní ikonou a běží celoobrazovkově.
+
+Na iOS: Safari → Sdílet → „Přidat na plochu“.
+
 ## Rychlý start (klasický hosting)
 
 ### 1. Databáze

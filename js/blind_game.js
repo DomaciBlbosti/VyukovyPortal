@@ -35,22 +35,26 @@
             }, 500);
         }
 
-        const typed = input.value.slice(-1);
-        if (!typed) return;
+        // Mobilní klávesnice můžou vložit víc znaků najednou — zpracuj všechny
+        const typedStr = input.value;
+        input.value = '';
+        if (!typedStr) return;
 
-        const expected = GAME_TEXT[charIndex];
-        const correct  = typed === expected;
+        for (const typed of typedStr) {
+            if (charIndex >= chars.length) break;
+            const expected = GAME_TEXT[charIndex];
+            const correct  = typed === expected;
 
-        typedChars.push({ typed, expected, correct });
-        if (!correct) errors++;
-        totalTyped++;
+            typedChars.push({ typed, expected, correct });
+            if (!correct) errors++;
+            totalTyped++;
+            charIndex++;
+        }
 
         // Slepý: pouze posouváme kurzor, BEZ barevné zpětné vazby
         chars.forEach(c => c.classList.remove('cursor'));
-        charIndex++;
         if (charIndex < chars.length) chars[charIndex].classList.add('cursor');
 
-        input.value = '';
         const pct = Math.round(charIndex / chars.length * 100);
         progressBar.style.width  = pct + '%';
         statProg.textContent     = pct;

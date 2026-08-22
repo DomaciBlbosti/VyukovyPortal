@@ -104,9 +104,11 @@ include __DIR__ . '/../includes/header.php';
     <div class="math-dots" id="mathDots"></div>
 
     <div class="typing-input-wrapper">
-        <input type="number" id="mathInput" class="typing-input" style="font-size:1.5rem;text-align:center"
+        <input type="text" inputmode="numeric" pattern="[0-9]*" id="mathInput" class="typing-input"
+               style="font-size:1.5rem;text-align:center"
                placeholder="napiš výsledek..." autocomplete="off" disabled>
         <button id="startBtn" class="btn-primary">Začít ▶</button>
+        <button id="submitBtn" class="btn-primary" style="display:none">✓ OK</button>
     </div>
 
     <div class="progress-bar-wrapper">
