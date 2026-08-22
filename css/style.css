@@ -513,6 +513,7 @@ a:hover { text-decoration: underline; }
     /* Filtry se lámou místo přetékání */
     .filter-group { flex-wrap: wrap; }
 
+
     /* Proud slov v časovém závodu nesmí vytlačit input pod klávesnici */
     .timed-words-wrapper { max-height: 8.5rem; }
 
@@ -724,7 +725,8 @@ a:hover { text-decoration: underline; }
 .blind-reveal-text { font-family: var(--font-mono); font-size: 1.1rem; line-height: 1.9; }
 
 /* ─── Matematika & Zeměpis ──────────────────────────── */
-.math-question-wrapper { text-align: center; padding: 1.5rem 0; }
+/* scroll-margin: při scrollIntoView nezajede příklad pod sticky navbar */
+.math-question-wrapper { text-align: center; padding: 1.5rem 0; scroll-margin-top: 74px; }
 .math-question { font-family: var(--font-mono); font-size: 2rem; font-weight: 700; color: var(--text); margin-bottom: .75rem; }
 .math-feedback { font-family: var(--font-mono); font-size: 1rem; min-height: 1.5rem; }
 .feedback-ok  { color: var(--accent); }
@@ -734,6 +736,39 @@ a:hover { text-decoration: underline; }
 .math-dot.dot-current { background: var(--accent2); border-color: var(--accent2); }
 .math-dot.dot-ok  { background: var(--accent); border-color: var(--accent); }
 .math-dot.dot-err { background: var(--danger); border-color: var(--danger); }
+
+/* ─── Matematika — výběr ze 6 možností ──────────────── */
+.math-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .65rem;
+    margin-bottom: 1rem;
+}
+.math-choice-btn {
+    display: flex; align-items: center; justify-content: center; gap: .6rem;
+    padding: 1rem .5rem;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.math-choice-btn:hover:not(:disabled) { border-color: var(--accent2); background: var(--bg2); }
+.math-choice-btn:disabled { cursor: default; }
+.math-choice-btn .mc-key { font-weight: 400; }
+.math-choice-btn.choice-correct { border-color: var(--accent); background: rgba(74,222,128,.12); }
+.math-choice-btn.choice-correct .mc-key { background: var(--accent); color: #000; border-color: var(--accent); }
+.math-choice-btn.choice-wrong { border-color: var(--danger); background: rgba(248,113,113,.12); }
+.math-choice-btn.choice-wrong .mc-key { background: var(--danger); color: #fff; border-color: var(--danger); }
+@media (max-width: 640px) {
+    /* 2 sloupce a větší dotykové plochy na mobilu */
+    .math-choice-grid { grid-template-columns: repeat(2, 1fr); }
+    .math-choice-btn { padding: 1.1rem .5rem; }
+}
 
 /* ─── Mode tabs (Zeměpis) ────────────────────────── */
 .mode-tabs { display:flex; gap:.5rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border); padding-bottom:0; }
