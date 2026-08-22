@@ -19,6 +19,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
 $level = isset($_GET['level']) ? intval($_GET['level']) : 1;
 $level = max(1, min(3, $level));
 
+// Režim: 'input' = psaní výsledku, 'choice' = výběr ze 6 možností
+$mode = ($_GET['mode'] ?? 'input') === 'choice' ? 'choice' : 'input';
+
+// 6 možností: správný výsledek + 5 věrohodných chybných (blízké hodnoty)
+function makeChoices(int $answer): array {
+    $set = [$answer => true];
+    $near = [$answer + 1, $answer - 1, $answer + 2, $answer - 2, $answer + 10,
+             $answer - 10, $answer + 5, $answer - 5, $answer + 3, $answer - 3];
+    shuffle($near);
+    foreach ($near as $c) {
+        if (count($set) >= 6) break;
+        if ($c >= 0 && !isset($set[$c])) $set[$c] = true;
+    }
+    while (count($set) < 6) {
+        $c = $answer + rand(-20, 20);
+        if ($c >= 0 && !isset($set[$c])) $set[$c] = true;
+    }
+    $choices = array_map('strval', array_keys($set));
+    shuffle($choices);
+    return $choices;
+}
+
 // Generuj příklady na serveru (JS si je vezme)
 function generateExamples(int $level, int $count = 20): array {
     $examples = [];
@@ -66,6 +88,10 @@ function generateExamples(int $level, int $count = 20): array {
 }
 
 $examples = generateExamples($level, 15);
+if ($mode === 'choice') {
+    foreach ($examples as &$ex) $ex['choices'] = makeChoices((int)$ex['a']);
+    unset($ex);
+}
 $levelNames = [1 => 'Sčítání a odčítání', 2 => 'Násobení a dělení', 3 => 'Pokročilé příklady'];
 
 $pageTitle = 'Matematika';
@@ -74,14 +100,19 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <h1>🔢 <span class="accent">Matematika</span></h1>
-    <p class="page-subtitle">Vypočítej a napiš výsledek</p>
+    <p class="page-subtitle"><?= $mode === 'choice' ? 'Vypočítej a vyber správný výsledek' : 'Vypočítej a napiš výsledek' ?></p>
+</div>
+
+<div class="mode-tabs">
+    <a href="?mode=input&level=<?= $level ?>"  class="mode-tab <?= $mode==='input' ?'active':'' ?>">⌨ Psaní výsledku</a>
+    <a href="?mode=choice&level=<?= $level ?>" class="mode-tab <?= $mode==='choice'?'active':'' ?>">🎯 Výběr z možností</a>
 </div>
 
 <div class="filters" style="margin-bottom:1.25rem">
     <div class="filter-group">
         <span class="filter-label">Obtížnost:</span>
         <?php foreach ($levelNames as $l => $name): ?>
-        <a href="?level=<?= $l ?>" class="filter-btn <?= $level === $l ? 'active' : '' ?>"><?= $name ?></a>
+        <a href="?mode=<?= $mode ?>&level=<?= $l ?>" class="filter-btn <?= $level === $l ? 'active' : '' ?>"><?= $name ?></a>
         <?php endforeach; ?>
     </div>
 </div>
@@ -103,6 +134,7 @@ include __DIR__ . '/../includes/header.php';
     <!-- Progress příkladů -->
     <div class="math-dots" id="mathDots"></div>
 
+    <?php if ($mode === 'input'): ?>
     <div class="typing-input-wrapper">
         <input type="text" inputmode="numeric" pattern="[0-9]*" id="mathInput" class="typing-input"
                style="font-size:1.5rem;text-align:center"
@@ -110,6 +142,15 @@ include __DIR__ . '/../includes/header.php';
         <button id="startBtn" class="btn-primary">Začít ▶</button>
         <button id="submitBtn" class="btn-primary" style="display:none">✓ OK</button>
     </div>
+    <?php else: ?>
+    <div class="math-choice-grid" id="choiceGrid" style="display:none"></div>
+    <div style="text-align:center;margin-bottom:1rem">
+        <button id="startBtn" class="btn-primary">Začít ▶</button>
+    </div>
+    <div style="text-align:center;margin-bottom:.75rem;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">
+        Klávesy <kbd>1</kbd>–<kbd>6</kbd> nebo klepnutí
+    </div>
+    <?php endif; ?>
 
     <div class="progress-bar-wrapper">
         <div class="progress-bar" id="progressBar" style="width:0%"></div>
@@ -125,7 +166,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="result-item"><div class="result-value" id="resFinalTime">–</div><div class="result-label">Čas</div></div>
     </div>
     <div class="results-actions">
-        <a href="?level=<?= $level ?>" class="btn-primary">↺ Hrát znovu</a>
+        <a href="?mode=<?= $mode ?>&level=<?= $level ?>" class="btn-primary">↺ Hrát znovu</a>
         <a href="<?= BASE_URL ?>/dashboard.php" class="btn-secondary">← Rozcestník</a>
     </div>
     <div id="saveStatus" class="save-status"></div>
@@ -135,5 +176,9 @@ include __DIR__ . '/../includes/header.php';
 const MATH_EXAMPLES = <?= json_encode($examples) ?>;
 const SAVE_URL      = '<?= BASE_URL ?>/games/math.php';
 </script>
+<?php if ($mode === 'input'): ?>
 <script src="<?= BASE_URL ?>/js/math_game.js"></script>
+<?php else: ?>
+<script src="<?= BASE_URL ?>/js/math_choice.js"></script>
+<?php endif; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
