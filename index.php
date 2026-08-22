@@ -35,12 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= BASE_URL ?>/css/style.css">
-<script>
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () =>
-        navigator.serviceWorker.register('<?= BASE_URL ?>/sw.js').catch(() => {}));
-}
-</script>
+<script>window.BASE_URL = '<?= BASE_URL ?>';</script>
 </head>
 <body class="login-page">
 <div class="login-container">
@@ -68,5 +63,6 @@ if ('serviceWorker' in navigator) {
         <button type="submit" class="login-btn">Přihlásit se →</button>
     </form>
 </div>
+<script src="<?= BASE_URL ?>/js/app.js"></script>
 </body>
 </html>

@@ -82,6 +82,10 @@
         if (e.key === 'Enter') submitAnswer();
     });
     input.addEventListener('focus', keepQuestionVisible);
+    // Otevření klávesnice zmenší viewport až po fokusu — zareaguj i na to
+    window.visualViewport?.addEventListener('resize', () => {
+        if (document.activeElement === input) keepQuestionVisible();
+    });
     submitBtn?.addEventListener('click', () => { submitAnswer(); input.focus(); });
 
     function finishGame() {
