@@ -17,10 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dname  = trim($_POST['display_name'] ?? '');
         $passwd = $_POST['password'] ?? '';
         $adm    = !empty($_POST['is_admin']) ? 1 : 0;
+        $grade  = max(0, min(9, intval($_POST['grade'] ?? 0)));
         if ($uname && $passwd) {
             try {
-                $db->prepare('INSERT INTO users (username, password_hash, display_name, is_admin) VALUES (?,?,?,?)')
-                   ->execute([$uname, password_hash($passwd, PASSWORD_BCRYPT), $dname ?: $uname, $adm]);
+                $db->prepare('INSERT INTO users (username, password_hash, display_name, is_admin, grade) VALUES (?,?,?,?,?)')
+                   ->execute([$uname, password_hash($passwd, PASSWORD_BCRYPT), $dname ?: $uname, $adm, $grade]);
                 $msg = 'Uzivatel ' . htmlspecialchars($uname) . ' byl vytvoren.';
             } catch (\PDOException $e) {
                 $msg = 'Chyba: prihlasovaci jmeno jiz existuje.'; $msgType = 'err';
@@ -37,6 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $u = $stmt->fetch();
             $msg = 'Heslo uzivatele ' . htmlspecialchars($u['display_name'] ?? '') . ' bylo zmeneno.';
         } else { $msg = 'Heslo musi mit alespon 6 znaku.'; $msgType = 'err'; }
+
+    } elseif ($action === 'set_grade' && $uid) {
+        $grade = max(0, min(9, intval($_POST['grade'] ?? 0)));
+        $db->prepare('UPDATE users SET grade = ? WHERE id = ?')->execute([$grade, $uid]);
+        // Vlastní ročník se musí projevit hned, bez odhlášení
+        if ($uid === $self) $_SESSION['grade'] = $grade;
+        $msg = $grade > 0 ? "Rocnik nastaven na $grade. tridu." : 'Rocnik zrusen (zobrazi se vsechny sady).';
 
     } elseif ($action === 'toggle_admin' && $uid && $uid !== $self) {
         $stmt = $db->prepare('SELECT is_admin, display_name FROM users WHERE id = ?');
@@ -66,13 +74,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Data
 $users = $db->query("
-    SELECT u.id, u.username, u.display_name, u.is_admin, u.is_active,
+    SELECT u.id, u.username, u.display_name, u.is_admin, u.is_active, u.grade,
            u.created_at, u.last_login,
            COUNT(gs.id)   AS total_games,
            ROUND(MAX(gs.wpm), 1) AS best_wpm
     FROM users u
     LEFT JOIN game_sessions gs ON gs.user_id = u.id
-    GROUP BY u.id, u.username, u.display_name, u.is_admin, u.is_active, u.created_at, u.last_login
+    GROUP BY u.id, u.username, u.display_name, u.is_admin, u.is_active, u.grade, u.created_at, u.last_login
     ORDER BY u.is_admin DESC, u.created_at ASC
 ")->fetchAll();
 
@@ -125,7 +133,7 @@ include __DIR__ . '/../includes/header.php';
         <thead>
             <tr>
                 <th>#</th><th>Login</th><th>Jmeno</th><th>Role</th><th>Stav</th>
-                <th>Hry</th><th>Nej WPM</th><th>Posledni prihlaseni</th><th>Akce</th>
+                <th>Rocnik</th><th>Hry</th><th>Nej WPM</th><th>Posledni prihlaseni</th><th>Akce</th>
             </tr>
         </thead>
         <tbody>
@@ -151,6 +159,19 @@ include __DIR__ . '/../includes/header.php';
                 <?php else: ?>
                     <span class="badge-status disabled">&#10008; Deaktivovan</span>
                 <?php endif; ?>
+            </td>
+            <td>
+                <form method="post" style="display:flex;gap:.25rem;align-items:center">
+                    <input type="hidden" name="action" value="set_grade">
+                    <input type="hidden" name="uid" value="<?= (int)$u['id'] ?>">
+                    <select name="grade" class="form-input" style="padding:.25rem .4rem;font-size:.8rem;width:auto"
+                            onchange="this.form.submit()">
+                        <option value="0" <?= (int)$u['grade'] === 0 ? 'selected' : '' ?>>-</option>
+                        <?php for ($g = 1; $g <= 9; $g++): ?>
+                        <option value="<?= $g ?>" <?= (int)$u['grade'] === $g ? 'selected' : '' ?>><?= $g ?>. trida</option>
+                        <?php endfor; ?>
+                    </select>
+                </form>
             </td>
             <td><?= (int)$u['total_games'] ?></td>
             <td><?= $u['best_wpm'] ?? '-' ?></td>
@@ -213,6 +234,15 @@ include __DIR__ . '/../includes/header.php';
         <div class="form-row">
             <label>Heslo *</label>
             <input type="password" name="password" class="form-input" required autocomplete="new-password">
+        </div>
+        <div class="form-row">
+            <label>Rocnik (urcuje obtiznost uloh)</label>
+            <select name="grade" class="form-input">
+                <option value="0">- neuveden (vsechny sady) -</option>
+                <?php for ($g = 1; $g <= 9; $g++): ?>
+                <option value="<?= $g ?>"><?= $g ?>. trida</option>
+                <?php endfor; ?>
+            </select>
         </div>
         <div class="form-row form-row-check">
             <label><input type="checkbox" name="is_admin" value="1"> Udelit admin prava</label>

@@ -33,13 +33,23 @@ function getCurrentUser(): array {
         'username'     => $_SESSION['username']     ?? '',
         'display_name' => $_SESSION['display_name'] ?? '',
         'is_admin'     => $_SESSION['is_admin']     ?? false,
+        'grade'        => $_SESSION['grade']        ?? 0,
     ];
+}
+
+/**
+ * Ročník přihlášeného žáka (1–9, 0 = neuvedeno).
+ * Čte se ze session; po změně v adminu se projeví po dalším přihlášení,
+ * proto se u vlastního profilu bere rovnou z databáze.
+ */
+function getUserGrade(): int {
+    return (int)($_SESSION['grade'] ?? 0);
 }
 
 function login(string $username, string $password): bool|string {
     require_once __DIR__ . '/../config/db.php';
     $db   = getDB();
-    $stmt = $db->prepare('SELECT id, username, password_hash, display_name, is_admin, is_active FROM users WHERE username = ?');
+    $stmt = $db->prepare('SELECT id, username, password_hash, display_name, is_admin, is_active, grade FROM users WHERE username = ?');
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
@@ -51,6 +61,7 @@ function login(string $username, string $password): bool|string {
     $_SESSION['username']     = $user['username'];
     $_SESSION['display_name'] = $user['display_name'];
     $_SESSION['is_admin']     = (bool)$user['is_admin'];
+    $_SESSION['grade']        = (int)($user['grade'] ?? 0);
 
     $db->prepare('UPDATE users SET last_login = NOW() WHERE id = ?')->execute([$user['id']]);
     return true;
