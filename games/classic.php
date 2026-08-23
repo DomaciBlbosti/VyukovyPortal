@@ -356,5 +356,5 @@ include __DIR__ . '/../includes/header.php';
 const GAME_TEXT = <?= json_encode($selectedLesson['text']) ?>;
 const SAVE_URL  = '<?= BASE_URL ?>/games/classic.php';
 </script>
-<script src="<?= BASE_URL ?>/js/typing_game.js"></script>
+<script src="<?= asset_url('/js/typing_game.js') ?>"></script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

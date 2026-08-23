@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="apple-mobile-web-app-title" content="TypeMaster">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= BASE_URL ?>/css/style.css">
+<link rel="stylesheet" href="<?= asset_url('/css/style.css') ?>">
 <script>window.BASE_URL = '<?= BASE_URL ?>';</script>
 </head>
 <body class="login-page">
@@ -63,6 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <button type="submit" class="login-btn">Přihlásit se →</button>
     </form>
 </div>
-<script src="<?= BASE_URL ?>/js/app.js"></script>
+<script src="<?= asset_url('/js/app.js') ?>"></script>
 </body>
 </html>

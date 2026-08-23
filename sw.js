@@ -4,7 +4,7 @@
 //   ve jméně, takže cache-first by po deployi navždy servíroval starou
 //   verzi. Takhle se ukáže cache a na pozadí se stáhne čerstvá kopie.
 // - HTML/stránky síť napřed, cache jako záloha při výpadku připojení.
-const CACHE_VERSION = "typemaster-v2";
+const CACHE_VERSION = "typemaster-v3";
 const STATIC_RE = /\.(css|js|png|svg|woff2?)(\?.*)?$/;
 
 self.addEventListener("install", (event) => {
@@ -29,10 +29,11 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.endsWith("/sw.js")) return;
 
   if (STATIC_RE.test(url.pathname)) {
-    // statika: stale-while-revalidate
+    // statika: stale-while-revalidate; no-cache obchází HTTP cache
+    // prohlížeče (stará expirace 1 týden by jinak revalidaci zablokovala)
     event.respondWith(
       caches.match(req).then((cached) => {
-        const fresh = fetch(req)
+        const fresh = fetch(req, { cache: "no-cache" })
           .then((res) => {
             if (res.ok) {
               const copy = res.clone();

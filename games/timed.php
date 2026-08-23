@@ -120,5 +120,5 @@ const WORD_POOL = <?= json_encode(array_values($wordPool)) ?>;
 const DURATION  = <?= $duration ?>;
 const SAVE_URL  = '<?= BASE_URL ?>/games/timed.php';
 </script>
-<script src="<?= BASE_URL ?>/js/timed_game.js"></script>
+<script src="<?= asset_url('/js/timed_game.js') ?>"></script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
