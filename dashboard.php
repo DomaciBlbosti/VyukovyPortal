@@ -2,9 +2,11 @@
 require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/levels.php';
 
-$user = getCurrentUser();
-$db   = getDB();
+$user  = getCurrentUser();
+$db    = getDB();
+$myLvl = getUserLevel((int)$user['id']);
 
 $stmt = $db->prepare('
     SELECT COUNT(*) AS total_games, ROUND(MAX(wpm),1) AS best_wpm,
@@ -86,6 +88,27 @@ include __DIR__ . '/includes/header.php';
     <h1>Vítej, <span class="accent"><?= htmlspecialchars($user['display_name']) ?></span>!</h1>
     <p class="page-subtitle">Co dnes nacvičíme?</p>
 </div>
+
+<section class="level-card">
+    <div class="level-badge-big"><?= $myLvl['icon'] ?></div>
+    <div class="level-info">
+        <div class="level-headline">
+            <span class="level-num">Level <?= $myLvl['level'] ?></span>
+            <span class="level-title"><?= htmlspecialchars($myLvl['title']) ?></span>
+        </div>
+        <div class="level-bar-wrapper">
+            <div class="level-bar" style="width:<?= $myLvl['progress'] ?>%"></div>
+        </div>
+        <div class="level-meta">
+            <span class="level-points"><?= number_format($myLvl['points'], 0, ',', ' ') ?> bodů</span>
+            <?php if ($myLvl['next_level']): ?>
+            <span>ještě <strong><?= number_format($myLvl['remaining'], 0, ',', ' ') ?></strong> do levelu <?= $myLvl['next_level'] ?></span>
+            <?php else: ?>
+            <span>🎉 nejvyšší level!</span>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
 
 <section class="quick-stats">
     <div class="stat-card"><div class="stat-value"><?= $myStats['total_games'] ?? 0 ?></div><div class="stat-label">odehraných her</div></div>

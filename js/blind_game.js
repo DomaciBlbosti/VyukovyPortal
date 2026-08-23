@@ -102,7 +102,7 @@
         fd.append('text_snippet', GAME_TEXT);
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
-            .then(d => { document.getElementById('saveStatus').textContent = d.ok ? '✔ Uloženo!' : ''; });
+            .then(d => renderReward(d, document.getElementById('saveStatus')));
     }
 
     resetBtn.addEventListener('click', () => location.reload());

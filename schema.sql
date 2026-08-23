@@ -38,3 +38,16 @@ CREATE TABLE IF NOT EXISTS achievements (
     UNIQUE KEY unique_achievement (user_id, achievement_key),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS levels (
+    level_number    INT          NOT NULL PRIMARY KEY,
+    points_required INT          NOT NULL,
+    title           VARCHAR(100) NOT NULL,
+    icon            VARCHAR(16)  NOT NULL DEFAULT '⭐'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS game_multipliers (
+    game_type  VARCHAR(50)  NOT NULL PRIMARY KEY,
+    label      VARCHAR(100) NOT NULL,
+    multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

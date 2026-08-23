@@ -20,6 +20,42 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
+// ─── Odměna po dohrané hře (body + postup na level) ─────
+// Volají všechny hry po uložení výsledku; data = odpověď saveGameResult().
+function renderReward(data, statusEl) {
+    if (statusEl) statusEl.textContent = data && data.ok ? '✔ Výsledek uložen!' : '⚠ Nepodařilo se uložit.';
+    if (!data || !data.ok || !data.level) return;
+
+    const panel = document.querySelector('.results-panel');
+    if (!panel) return;
+    const anchor = panel.querySelector('h2');
+
+    if (data.points > 0) {
+        const badge = document.createElement('div');
+        badge.className = 'points-earned';
+        badge.textContent = '⭐ +' + data.points + (data.points === 1 ? ' bod' : (data.points < 5 ? ' body' : ' bodů'));
+        anchor ? anchor.after(badge) : panel.prepend(badge);
+    }
+
+    const lvl = data.level;
+    const box = document.createElement('div');
+    if (data.levelup) {
+        box.className = 'levelup-banner';
+        box.innerHTML = '<div class="levelup-title">' + lvl.icon + ' Nový level ' + lvl.level + ' — ' + lvl.title + '!</div>' +
+                        '<div class="levelup-sub">Celkem ' + lvl.points + ' bodů</div>';
+    } else {
+        box.className = 'levelup-banner';
+        box.style.background = 'transparent';
+        box.style.borderColor = 'var(--border)';
+        box.style.color = 'var(--muted)';
+        box.innerHTML = '<div class="levelup-sub">' + lvl.icon + ' Level ' + lvl.level + ' · ' + lvl.points + ' bodů' +
+                        (lvl.next_level ? ' · ještě ' + lvl.remaining + ' do levelu ' + lvl.next_level : ' · nejvyšší level 🎉') +
+                        '</div>';
+    }
+    const badge = panel.querySelector('.points-earned');
+    badge ? badge.after(box) : (anchor ? anchor.after(box) : panel.prepend(box));
+}
+
 // ─── PWA ────────────────────────────────────────────────
 const BASE = window.BASE_URL || '';
 

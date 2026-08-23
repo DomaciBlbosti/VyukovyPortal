@@ -4,7 +4,7 @@ requireLogin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
-    echo json_encode(['ok' => true, 'id' => saveGameSession([
+    echo json_encode(saveGameResult([
         'game_type'        => $_POST['game_type'] ?? 'geography',
         'wpm'              => floatval($_POST['wpm']       ?? 0),
         'accuracy'         => floatval($_POST['accuracy']  ?? 0),
@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         'chars_typed'      => intval($_POST['chars_typed'] ?? 0),
         'errors'           => intval($_POST['errors']      ?? 0),
         'text_snippet'     => 'zemepisna mapa',
-    ])]);
+    ]));
     exit;
 }
 

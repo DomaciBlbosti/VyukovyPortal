@@ -64,11 +64,12 @@ function logout(): void {
 
 function saveGameSession(array $data): int {
     require_once __DIR__ . '/../config/db.php';
+    require_once __DIR__ . '/levels.php';
     $db   = getDB();
     $user = getCurrentUser();
     $stmt = $db->prepare('
-        INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet, points)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ');
     $stmt->execute([
         $user['id'],
@@ -79,6 +80,27 @@ function saveGameSession(array $data): int {
         $data['chars_typed']      ?? 0,
         $data['errors']           ?? 0,
         $data['text_snippet']     ?? '',
+        calculatePoints($data),
     ]);
     return (int)$db->lastInsertId();
+}
+
+/**
+ * Uloží výsledek hry a vrátí odpověď pro frontend — včetně získaných bodů
+ * a informace, jestli hráč postoupil na nový level.
+ */
+function saveGameResult(array $data): array {
+    require_once __DIR__ . '/levels.php';
+    $user   = getCurrentUser();
+    $before = getUserLevel($user['id']);
+    $id     = saveGameSession($data);
+    $after  = getUserLevel($user['id']);
+
+    return [
+        'ok'      => true,
+        'id'      => $id,
+        'points'  => calculatePoints($data),
+        'level'   => $after,
+        'levelup' => $after['level'] > $before['level'],
+    ];
 }

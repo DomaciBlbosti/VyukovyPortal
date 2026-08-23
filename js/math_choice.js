@@ -118,6 +118,6 @@
         fd.append('errors', wrong);
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
-            .then(d => { document.getElementById('saveStatus').textContent = d.ok ? '✔ Uloženo!' : ''; });
+            .then(d => renderReward(d, document.getElementById('saveStatus')));
     }
 })();

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/levels.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
@@ -18,9 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         $row = $stmt->fetch();
         $uid = $row ? $row['id'] : $user['id'];
 
+        $points = calculatePoints([
+            'game_type'   => 'duel',
+            'accuracy'    => floatval($_POST[$p . '_accuracy'] ?? 0),
+            'chars_typed' => intval($_POST[$p . '_chars']      ?? 0),
+        ]);
         $stmt2 = $db->prepare('
-            INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet)
-            VALUES (?, "duel", ?, ?, ?, ?, ?, ?)
+            INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet, points)
+            VALUES (?, "duel", ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt2->execute([
             $uid,
@@ -30,8 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
             intval($_POST[$p . '_chars']       ?? 0),
             intval($_POST[$p . '_errors']      ?? 0),
             substr($_POST['text_snippet'] ?? '', 0, 200),
+            $points,
         ]);
-        $results[$p] = ['wpm' => $_POST[$p . '_wpm'], 'name' => $name];
+        $results[$p] = ['wpm' => $_POST[$p . '_wpm'], 'name' => $name, 'points' => $points];
     }
     echo json_encode(['ok' => true, 'results' => $results]);
     exit;
