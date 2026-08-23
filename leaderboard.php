@@ -31,6 +31,7 @@ $gameTypes = [
     'blind'        => ['label' => '🙈 Slepý',         'icon' => '🙈'],
     'czech'        => ['label' => '✍️ Čeština',      'icon' => '✍️'],
     'math'         => ['label' => '🔢 Matematika',   'icon' => '🔢'],
+    'english'      => ['label' => '🇬🇧 Angličtina',   'icon' => '🇬🇧'],
     'geography'    => ['label' => '🌍 Zeměpis',      'icon' => '🌍'],
     'geography_map'=> ['label' => '🗺 Slepé mapy',   'icon' => '🗺'],
 ];

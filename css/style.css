@@ -1175,3 +1175,51 @@ a:hover { text-decoration: underline; }
 /* Dlouhá matematická zadání (NSD, počet dělitelů) — menší písmo */
 .math-question.math-question-long { font-size: 1.5rem; }
 @media (max-width: 640px) { .math-question.math-question-long { font-size: 1.15rem; } }
+
+/* ─── Angličtina — slovíčka ─────────────────────── */
+.en-prompt {
+    text-align: center;
+    font-size: .75rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.en-task {
+    font-size: 2.1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--accent2);
+    margin: .35rem 0 1.75rem;
+    word-break: break-word;
+}
+/* delší zadání (např. „understand — minulý čas") zmenši, ať se vejde */
+.en-task.en-task-long { font-size: 1.5rem; }
+.en-choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+}
+.en-choice-btn {
+    min-height: 4.25rem;
+    padding: .9rem .6rem;
+    background: var(--bg3);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.en-choice-btn:hover:not(:disabled) { border-color: var(--accent2); background: var(--bg2); }
+.en-choice-btn:disabled { cursor: default; }
+.en-choice-btn.choice-correct { border-color: var(--accent); background: rgba(74,222,128,.15); color: var(--accent); }
+.en-choice-btn.choice-wrong   { border-color: var(--danger); background: rgba(248,113,113,.15); color: var(--danger); }
+.en-input { font-size: 1.35rem; text-align: center; }
+@media (max-width: 640px) {
+    .en-task { font-size: 1.7rem; }
+    .en-task.en-task-long { font-size: 1.25rem; }
+    .en-choice-btn { min-height: 4rem; font-size: .98rem; padding: .8rem .45rem; }
+}
