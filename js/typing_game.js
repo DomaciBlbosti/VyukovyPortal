@@ -178,7 +178,7 @@
             const resp = await fetch(SAVE_URL, { method: 'POST', body: fd });
             const data = await resp.json();
 
-            status.textContent = data.ok ? '✔ Výsledek uložen!' : '⚠ Nepodařilo se uložit.';
+            renderReward(data, status);
         } catch (e) {
             status.textContent = '⚠ Chyba při ukládání.';
         }

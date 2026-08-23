@@ -2,9 +2,26 @@
 require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/levels.php';
 
 $db   = getDB();
 $user = getCurrentUser();
+
+// Žebříček podle nasbíraných bodů (napříč všemi hrami, bez filtrů)
+try {
+    $topPoints = $db->query('
+        SELECT u.id, u.display_name, COALESCE(SUM(gs.points), 0) AS points, COUNT(gs.id) AS games
+        FROM users u
+        LEFT JOIN game_sessions gs ON gs.user_id = u.id
+        WHERE u.is_active = 1
+        GROUP BY u.id, u.display_name
+        HAVING points > 0
+        ORDER BY points DESC
+        LIMIT 20
+    ')->fetchAll();
+} catch (PDOException $e) {
+    $topPoints = []; // sloupec points ještě není (před migrací)
+}
 
 // Definice herních typů
 $gameTypes = [
@@ -116,6 +133,33 @@ include __DIR__ . '/includes/header.php';
         </div>
     </div>
 </div>
+
+<!-- Žebříček bodů a levelů -->
+<?php if (!empty($topPoints)): ?>
+<section style="margin-bottom:2rem">
+    <h2 class="section-title">⭐ Nejvíc bodů</h2>
+    <div class="table-wrapper">
+    <table class="data-table">
+        <thead><tr><th>#</th><th>Hráč</th><th>Level</th><th>Body</th><th>Her</th></tr></thead>
+        <tbody>
+        <?php foreach ($topPoints as $i => $p):
+            $lv    = levelForPoints((int)$p['points']);
+            $isMe  = (int)$p['id'] === (int)$user['id'];
+            $medal = ['🥇','🥈','🥉'][$i] ?? ($i + 1);
+        ?>
+            <tr class="<?= $isMe ? 'highlight-row' : '' ?>">
+                <td class="rank"><?= $medal ?></td>
+                <td><?= htmlspecialchars($p['display_name']) ?><?= $isMe ? ' <span style="color:var(--muted);font-size:.8rem">(ty)</span>' : '' ?></td>
+                <td><?= $lv['icon'] ?> <?= $lv['level'] ?> <span style="color:var(--muted);font-size:.85rem"><?= htmlspecialchars($lv['title']) ?></span></td>
+                <td style="font-family:var(--font-mono);color:var(--accent);font-weight:700"><?= number_format((int)$p['points'], 0, ',', ' ') ?></td>
+                <td style="color:var(--muted)"><?= (int)$p['games'] ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+</section>
+<?php endif; ?>
 
 <!-- Přehled her (jen pro "Vše") -->
 <?php if ($gameType === 'all' && !empty($typeStats)): ?>

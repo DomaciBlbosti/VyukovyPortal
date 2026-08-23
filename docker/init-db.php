@@ -30,10 +30,9 @@ if (!$pdo) {
     exit(1);
 }
 
-$schema = file_get_contents(__DIR__ . '/../schema.sql');
-$schema = preg_replace('/^\s*--.*$/m', '', $schema); // odstraň komentářové řádky
-foreach (array_filter(array_map('trim', explode(';', $schema))) as $sql) {
-    $pdo->exec($sql);
+require_once __DIR__ . '/../includes/migrate.php';
+foreach (runMigrations($pdo) as $step) {
+    echo "[db] $step\n";
 }
 echo "[db] schéma připraveno\n";
 

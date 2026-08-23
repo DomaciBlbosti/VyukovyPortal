@@ -180,7 +180,7 @@
             fd.append('text_snippet', wordList.slice(0, 10).join(' '));
             const r = await fetch(SAVE_URL, { method: 'POST', body: fd });
             const d = await r.json();
-            status.textContent = d.ok ? '✔ Výsledek uložen!' : '⚠ Nepodařilo se uložit.';
+            renderReward(d, status);
         } catch { status.textContent = '⚠ Chyba při ukládání.'; }
     }
 

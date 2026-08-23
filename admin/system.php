@@ -43,6 +43,17 @@ if ($hasGit && $_SERVER['REQUEST_METHOD'] === 'POST') {
         [$pc, $pout] = runGit('pull --ff-only origin ' . escapeshellarg($branch));
         $updateLog = trim($fout . "\n" . $pout);
         if ($pc === 0) {
+            // Nová verze může přinést změny schématu — dožeň je hned,
+            // jinak by appka běžela na starou databázi.
+            try {
+                require_once __DIR__ . '/../config/db.php';
+                require_once __DIR__ . '/../includes/migrate.php';
+                $steps = runMigrations(getDB());
+                if ($steps) $updateLog .= "\n\n[db] " . implode("\n[db] ", $steps);
+            } catch (Throwable $e) {
+                $updateLog .= "\n\n[db] migrace selhala: " . $e->getMessage();
+                $msgType = 'warn';
+            }
             $msg = str_contains($pout, 'Already up to date')
                  ? 'Aplikace už byla aktuální.'
                  : 'Aktualizace proběhla — běží nová verze. Uživatelům se projeví po obnovení stránky.';

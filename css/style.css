@@ -223,6 +223,87 @@ a:hover { text-decoration: underline; }
     50% { transform: translateY(-4px); color: var(--accent); border-color: var(--accent); }
 }
 
+/* ─── Level karta (dashboard) ───────────────────────── */
+.level-card {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: linear-gradient(135deg, var(--bg2), var(--bg3));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.level-badge-big {
+    font-size: 2.8rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.level-info { flex: 1; min-width: 0; }
+.level-headline { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.level-num   { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+.level-title { color: var(--text); font-size: 1rem; }
+.level-bar-wrapper {
+    height: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.level-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 6px;
+    transition: width .6s ease;
+}
+.level-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: .5rem;
+    font-size: .82rem;
+    color: var(--muted);
+}
+.level-points { font-family: var(--font-mono); color: var(--accent); font-weight: 700; }
+@media (max-width: 640px) {
+    .level-card { padding: 1.1rem; gap: 1rem; }
+    .level-badge-big { font-size: 2.2rem; }
+    .level-num { font-size: 1.1rem; }
+}
+
+/* ─── Body a level ve výsledcích hry ────────────────── */
+.points-earned {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    margin: 0 auto 1.25rem;
+    padding: .7rem 1.25rem;
+    max-width: max-content;
+    background: rgba(74,222,128,.1);
+    border: 1px solid var(--accent);
+    border-radius: 30px;
+    font-family: var(--font-mono);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+    animation: fadeInUp .5s ease both;
+}
+.levelup-banner {
+    margin: 0 auto 1.25rem;
+    padding: 1rem 1.5rem;
+    max-width: 420px;
+    background: rgba(251,191,36,.12);
+    border: 1px solid #fbbf24;
+    border-radius: var(--radius);
+    color: #fbbf24;
+    font-family: var(--font-mono);
+    animation: fadeInUp .5s ease both;
+}
+.levelup-banner .levelup-title { font-size: 1.1rem; font-weight: 700; margin-bottom: .25rem; }
+.levelup-banner .levelup-sub   { font-size: .85rem; color: var(--muted); }
+
 /* ─── Stat karty ────────────────────────────────────── */
 .quick-stats {
     display: grid;
