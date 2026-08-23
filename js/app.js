@@ -54,6 +54,18 @@ function renderReward(data, statusEl) {
     }
     const badge = panel.querySelector('.points-earned');
     badge ? badge.after(box) : (anchor ? anchor.after(box) : panel.prepend(box));
+
+    // Nově získané odznaky — vkládáme za sebe, ať drží pořadí
+    let anchorEl = box;
+    (data.achievements || []).forEach(a => {
+        const el = document.createElement('div');
+        el.className = 'achievement-earned';
+        el.innerHTML = '<span class="ach-icon">' + a.icon + '</span>' +
+                       '<span><strong>Nový odznak: ' + a.title + '</strong>' +
+                       '<div class="ach-desc">' + a.desc + '</div></span>';
+        anchorEl.after(el);
+        anchorEl = el;
+    });
 }
 
 // ─── PWA ────────────────────────────────────────────────

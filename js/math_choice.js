@@ -32,6 +32,8 @@
         const ex = examples[current];
 
         questionEl.textContent = ex.q;
+        // dlouhá zadání (NSD, dělitelé) zmenši, ať se vejdou na jeden řádek
+        questionEl.classList.toggle('math-question-long', questionEl.textContent.length > 16);
         feedbackEl.textContent = '';
         feedbackEl.className   = 'math-feedback';
         gridEl.innerHTML       = '';
@@ -116,6 +118,7 @@
         fd.append('duration', Math.round(elapsed));
         fd.append('chars_typed', correct);
         fd.append('errors', wrong);
+        fd.append('text_snippet', typeof MATH_SET !== 'undefined' ? MATH_SET : 'matematika');
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
             .then(d => renderReward(d, document.getElementById('saveStatus')));

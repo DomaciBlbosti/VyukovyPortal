@@ -990,6 +990,49 @@ a:hover { text-decoration: underline; }
 .mc-choice-btn.mc-choice-wrong .mc-key   { background:var(--danger); color:#fff; border-color:var(--danger); }
 .mc-feedback { text-align: center; font-family: var(--font-mono); font-size: 1rem; min-height: 1.5rem; margin-top: .75rem; }
 
+/* ─── Odznaky ────────────────────────────────────── */
+.ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+}
+.ach-card {
+    display: flex;
+    align-items: flex-start;
+    gap: .9rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem;
+    opacity: .55;
+    transition: opacity .2s, border-color .2s;
+}
+.ach-card-earned { opacity: 1; border-color: var(--accent); background: rgba(74,222,128,.05); }
+.ach-card-icon   { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+.ach-card-title  { font-family: var(--font-mono); font-weight: 700; margin-bottom: .2rem; }
+.ach-card-desc   { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+.ach-card-date   { font-size: .72rem; color: var(--accent); font-family: var(--font-mono); margin-top: .4rem; }
+
+/* Odznak získaný právě teď — ve výsledcích hry */
+.achievement-earned {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin: 0 auto 1rem;
+    padding: .85rem 1.25rem;
+    max-width: 420px;
+    background: rgba(74,222,128,.1);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    text-align: left;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: .9rem;
+    animation: fadeInUp .5s ease both;
+}
+.achievement-earned .ach-icon { font-size: 1.8rem; }
+.achievement-earned .ach-desc { color: var(--muted); font-size: .78rem; margin-top: .15rem; }
+
 /* ─── Čeština — doplňování i/y ───────────────────── */
 .cz-task {
     font-family: var(--font-mono);
@@ -1128,3 +1171,7 @@ a:hover { text-decoration: underline; }
 .alert-warn { background:rgba(251,146,60,.1);  border:1px solid #fb923c;       color:#fb923c; }
 
 .table-wrapper { overflow-x:auto; }
+
+/* Dlouhá matematická zadání (NSD, počet dělitelů) — menší písmo */
+.math-question.math-question-long { font-size: 1.5rem; }
+@media (max-width: 640px) { .math-question.math-question-long { font-size: 1.15rem; } }

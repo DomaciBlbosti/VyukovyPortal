@@ -2,6 +2,16 @@
 
 (function () {
     const examples   = [...MATH_EXAMPLES];
+
+    // Děti píšou desetinnou tečku i čárku, zbytek jako „3 zb 2" i „3 zb. 2".
+    // Porovnáváme tedy až po sjednocení zápisu.
+    function normalize(s) {
+        return String(s).trim().toLowerCase()
+            .replace(/\./g, ',')          // 4.5 → 4,5 ; zb. → zb,
+            .replace(/,(?=\s|$)/g, '')    // odstraň čárku na konci (zb,)
+            .replace(/\s+/g, ' ')
+            .replace(/\s*\/\s*/g, '/'); // 3 / 4 → 3/4
+    }
     const input      = document.getElementById('mathInput');
     const startBtn   = document.getElementById('startBtn');
     const questionEl = document.getElementById('mathQuestion');
@@ -36,6 +46,8 @@
     function showQuestion() {
         if (current >= examples.length) { finishGame(); return; }
         questionEl.textContent  = examples[current].q;
+        // dlouhá zadání (NSD, dělitelé) zmenši, ať se vejdou na jeden řádek
+        questionEl.classList.toggle('math-question-long', questionEl.textContent.length > 16);
         feedbackEl.textContent  = '';
         feedbackEl.className    = 'math-feedback';
         input.value             = '';
@@ -64,7 +76,7 @@
         if (current >= examples.length) return;
         const val = input.value.trim();
         if (!val) return;
-        const isOk = val === examples[current].a;
+        const isOk = normalize(val) === normalize(examples[current].a);
         examples[current]._ok = isOk;
 
         feedbackEl.textContent = isOk ? '✔ Správně!' : `✘ Správně: ${examples[current].a}`;
@@ -112,6 +124,7 @@
         fd.append('duration', Math.round(elapsed));
         fd.append('chars_typed', correct);
         fd.append('errors', wrong);
+        fd.append('text_snippet', typeof MATH_SET !== 'undefined' ? MATH_SET : 'matematika');
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
             .then(d => renderReward(d, document.getElementById('saveStatus')));
