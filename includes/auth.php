@@ -102,16 +102,18 @@ function saveGameSession(array $data): int {
  */
 function saveGameResult(array $data): array {
     require_once __DIR__ . '/levels.php';
+    require_once __DIR__ . '/achievements.php';
     $user   = getCurrentUser();
     $before = getUserLevel($user['id']);
     $id     = saveGameSession($data);
     $after  = getUserLevel($user['id']);
 
     return [
-        'ok'      => true,
-        'id'      => $id,
-        'points'  => calculatePoints($data),
-        'level'   => $after,
-        'levelup' => $after['level'] > $before['level'],
+        'ok'           => true,
+        'id'           => $id,
+        'points'       => calculatePoints($data),
+        'level'        => $after,
+        'levelup'      => $after['level'] > $before['level'],
+        'achievements' => checkAchievements((int)$user['id'], $data),
     ];
 }

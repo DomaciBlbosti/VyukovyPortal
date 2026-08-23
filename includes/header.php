@@ -33,6 +33,7 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         <div class="nav-links">
             <a href="<?= BASE_URL ?>/dashboard.php"   class="nav-link <?= $currentPage==='dashboard'   ?'active':'' ?>">🏠 Rozcestník</a>
             <a href="<?= BASE_URL ?>/stats.php"        class="nav-link <?= $currentPage==='stats'        ?'active':'' ?>">📊 Statistiky</a>
+            <a href="<?= BASE_URL ?>/achievements.php" class="nav-link <?= $currentPage==='achievements' ?'active':'' ?>">🏅 Odznaky</a>
             <a href="<?= BASE_URL ?>/leaderboard.php"  class="nav-link <?= $currentPage==='leaderboard'  ?'active':'' ?>">🏆 Žebříček</a>
             <?php if ($currentUser['is_admin']): ?>
             <a href="<?= BASE_URL ?>/admin/index.php"  class="nav-link nav-link-admin <?= str_starts_with($currentPage,'admin')||dirname($_SERVER['PHP_SELF'])==='/admin'?'active':'' ?>">⚙️ Admin</a>

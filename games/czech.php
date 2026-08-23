@@ -28,10 +28,22 @@ if (!$categories) $categories = czechCategories(); // pojistka pro nezvyklý ro�
 $cat = $_GET['cat'] ?? array_key_first($categories);
 if (!isset($categories[$cat])) $cat = array_key_first($categories);
 
-// Vyber 12 náhodných úloh ze sady
-$items = $categories[$cat]['items'];
+// Vyber 12 úloh, ale vyváženě: kdyby se vybíralo čistě náhodně, mohla by
+// vyjít samá slova s ypsilonem a dítě by prošlo strategií „mačkej pořád y".
+// Proto bereme zhruba polovinu z každé skupiny.
+$byAnswer = ['y' => [], 'i' => []];
+foreach ($categories[$cat]['items'] as $it) {
+    $byAnswer[in_array($it['correct'], ['y', 'ý'], true) ? 'y' : 'i'][] = $it;
+}
+shuffle($byAnswer['y']);
+shuffle($byAnswer['i']);
+
+$want   = 12;
+$wantI  = min(count($byAnswer['i']), (int)floor($want / 2));
+$wantY  = min(count($byAnswer['y']), $want - $wantI);
+$wantI  = min(count($byAnswer['i']), $want - $wantY); // dorovnej, když je jedna skupina malá
+$items  = array_merge(array_slice($byAnswer['y'], 0, $wantY), array_slice($byAnswer['i'], 0, $wantI));
 shuffle($items);
-$items = array_slice($items, 0, 12);
 $tasks = array_map(fn($it) => [
     'text'    => $it['text'],
     'correct' => $it['correct'],

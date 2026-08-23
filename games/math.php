@@ -1,6 +1,12 @@
 <?php
+/**
+ * Matematika — témata podle ročníku (sčítání, násobilka po řadách,
+ * dělení se zbytkem, desetinná čísla, zlomky, dělitelnost).
+ * Každé téma jde hrát psaním výsledku nebo výběrem ze šesti možností.
+ */
 require_once __DIR__ . '/../includes/auth.php';
 requireLogin();
+require_once __DIR__ . '/data/math.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
@@ -11,91 +17,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         'duration_seconds' => intval($_POST['duration']    ?? 0),
         'chars_typed'      => intval($_POST['chars_typed'] ?? 0),
         'errors'           => intval($_POST['errors']      ?? 0),
-        'text_snippet'     => 'matematika',
+        'text_snippet'     => substr($_POST['text_snippet'] ?? 'matematika', 0, 100),
     ]));
     exit;
 }
 
-$level = isset($_GET['level']) ? intval($_GET['level']) : 1;
-$level = max(1, min(3, $level));
+$grade  = getUserGrade();
+$topics = mathTopicsForGrade($grade);
+if (!$topics) $topics = mathTopics();
+
+$topic = $_GET['topic'] ?? array_key_first($topics);
+if (!isset($topics[$topic])) $topic = array_key_first($topics);
+
+$variants = $topics[$topic]['variants'];
+$variant  = $_GET['v'] ?? array_key_first($variants);
+if (!isset($variants[$variant])) $variant = array_key_first($variants);
 
 // Režim: 'input' = psaní výsledku, 'choice' = výběr ze 6 možností
 $mode = ($_GET['mode'] ?? 'input') === 'choice' ? 'choice' : 'input';
 
-// 6 možností: správný výsledek + 5 věrohodných chybných (blízké hodnoty)
-function makeChoices(int $answer): array {
-    $set = [$answer => true];
-    $near = [$answer + 1, $answer - 1, $answer + 2, $answer - 2, $answer + 10,
-             $answer - 10, $answer + 5, $answer - 5, $answer + 3, $answer - 3];
-    shuffle($near);
-    foreach ($near as $c) {
-        if (count($set) >= 6) break;
-        if ($c >= 0 && !isset($set[$c])) $set[$c] = true;
-    }
-    while (count($set) < 6) {
-        $c = $answer + rand(-20, 20);
-        if ($c >= 0 && !isset($set[$c])) $set[$c] = true;
-    }
-    $choices = array_map('strval', array_keys($set));
-    shuffle($choices);
-    return $choices;
-}
-
-// Generuj příklady na serveru (JS si je vezme)
-function generateExamples(int $level, int $count = 20): array {
-    $examples = [];
-    for ($i = 0; $i < $count; $i++) {
-        switch ($level) {
-            case 1: // Sčítání a odčítání do 100
-                $a  = rand(1, 50);
-                $b  = rand(1, 50);
-                $op = rand(0,1) ? '+' : '-';
-                if ($op === '-' && $b > $a) [$a, $b] = [$b, $a];
-                $result = $op === '+' ? $a + $b : $a - $b;
-                $examples[] = ['q' => "$a $op $b =", 'a' => (string)$result];
-                break;
-            case 2: // Násobení a dělení
-                $a = rand(2, 12);
-                $b = rand(2, 12);
-                $op = rand(0,1) ? '×' : '÷';
-                if ($op === '÷') {
-                    $result = $a;
-                    $a = $a * $b;
-                    $examples[] = ['q' => "$a $op $b =", 'a' => (string)$result];
-                } else {
-                    $result = $a * $b;
-                    $examples[] = ['q' => "$a $op $b =", 'a' => (string)$result];
-                }
-                break;
-            case 3: // Smíšené s většími čísly
-                $ops = ['+','-','×'];
-                $op  = $ops[array_rand($ops)];
-                if ($op === '×') {
-                    $a = rand(5, 25); $b = rand(5, 15);
-                    $result = $a * $b;
-                } elseif ($op === '-') {
-                    $a = rand(50, 200); $b = rand(1, $a);
-                    $result = $a - $b;
-                } else {
-                    $a = rand(50, 500); $b = rand(50, 500);
-                    $result = $a + $b;
-                }
-                $examples[] = ['q' => "$a $op $b =", 'a' => (string)$result];
-                break;
-        }
-    }
-    return $examples;
-}
-
-$examples = generateExamples($level, 15);
+$examples = generateMathExamples($topic, $variant, 15);
 if ($mode === 'choice') {
-    foreach ($examples as &$ex) $ex['choices'] = makeChoices((int)$ex['a']);
+    foreach ($examples as &$ex) $ex['choices'] = mathChoices($ex['a']);
     unset($ex);
 }
-$levelNames = [1 => 'Sčítání a odčítání', 2 => 'Násobení a dělení', 3 => 'Pokročilé příklady'];
 
+$setLabel  = $topics[$topic]['label'] . ' — ' . $variants[$variant];
 $pageTitle = 'Matematika';
 include __DIR__ . '/../includes/header.php';
+
+/** Odkaz se zachováním ostatních parametrů */
+function mathUrl(array $override): string {
+    $q = array_merge(['topic' => $_GET['topic'] ?? '', 'v' => $_GET['v'] ?? '', 'mode' => $_GET['mode'] ?? 'input'], $override);
+    return '?' . http_build_query(array_filter($q, fn($x) => $x !== ''));
+}
 ?>
 
 <div class="page-header">
@@ -104,24 +59,59 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="mode-tabs">
-    <a href="?mode=input&level=<?= $level ?>"  class="mode-tab <?= $mode==='input' ?'active':'' ?>">⌨ Psaní výsledku</a>
-    <a href="?mode=choice&level=<?= $level ?>" class="mode-tab <?= $mode==='choice'?'active':'' ?>">🎯 Výběr z možností</a>
+    <a href="<?= mathUrl(['topic' => $topic, 'v' => $variant, 'mode' => 'input']) ?>"  class="mode-tab <?= $mode==='input' ?'active':'' ?>">⌨ Psaní výsledku</a>
+    <a href="<?= mathUrl(['topic' => $topic, 'v' => $variant, 'mode' => 'choice']) ?>" class="mode-tab <?= $mode==='choice'?'active':'' ?>">🎯 Výběr z možností</a>
+</div>
+
+<div class="filters" style="margin-bottom:.75rem">
+    <div class="filter-group">
+        <span class="filter-label">Téma:</span>
+        <?php foreach ($topics as $key => $t): ?>
+        <a href="<?= mathUrl(['topic' => $key, 'v' => '']) ?>" class="filter-btn <?= $key === $topic ? 'active' : '' ?>">
+            <?= $t['icon'] ?> <?= htmlspecialchars($t['label']) ?>
+        </a>
+        <?php endforeach; ?>
+    </div>
 </div>
 
 <div class="filters" style="margin-bottom:1.25rem">
     <div class="filter-group">
-        <span class="filter-label">Obtížnost:</span>
-        <?php foreach ($levelNames as $l => $name): ?>
-        <a href="?mode=<?= $mode ?>&level=<?= $l ?>" class="filter-btn <?= $level === $l ? 'active' : '' ?>"><?= $name ?></a>
+        <span class="filter-label"><?= $topic === 'nasobilka' ? 'Řada:' : 'Obtížnost:' ?></span>
+        <?php foreach ($variants as $key => $label): ?>
+        <a href="<?= mathUrl(['topic' => $topic, 'v' => $key]) ?>" class="filter-btn <?= $key === $variant ? 'active' : '' ?>">
+            <?= htmlspecialchars($label) ?>
+        </a>
         <?php endforeach; ?>
     </div>
 </div>
+
+<?php
+// Zadání držíme krátká, aby se na mobilu nelámala — co po dítěti chceme,
+// říká tahle věta nad hrou.
+$taskNote = match (true) {
+    $topic === 'zlomky'    && $variant === 'kraceni' => 'Zkrať zlomek na základní tvar.',
+    $topic === 'zlomky'                              => 'Vypočítej část z celku.',
+    $topic === 'deleni'    && $variant === 'se'      => 'Vyděl se zbytkem.',
+    $topic === 'delitelnost' && $variant === 'nsd'   => 'Najdi největší společný dělitel obou čísel.',
+    $topic === 'delitelnost'                         => 'Spočítej, kolik má číslo dělitelů (včetně 1 a sebe sama).',
+    default => '',
+};
+?>
+<?php if ($taskNote): ?>
+<div class="lesson-hint" style="margin-bottom:1rem">📌 <?= $taskNote ?></div>
+<?php endif; ?>
+
+<?php if ($grade > 0): ?>
+<div class="lesson-hint" style="margin-bottom:1.25rem">
+    💡 Témata odpovídají <strong><?= $grade ?>. třídě</strong>. Změnit ročník může rodič v nastavení účtu.
+</div>
+<?php endif; ?>
 
 <div class="game-container" id="gameContainer" style="max-width:600px">
     <div class="game-stats-bar">
         <div class="game-stat"><span class="gstat-value" id="statScore">0</span><span class="gstat-label">správně</span></div>
         <div class="game-stat"><span class="gstat-value" id="statErrors">0</span><span class="gstat-label">chyb</span></div>
-        <div class="game-stat"><span class="gstat-value" id="statRemain">15</span><span class="gstat-label">zbývá</span></div>
+        <div class="game-stat"><span class="gstat-value" id="statRemain"><?= count($examples) ?></span><span class="gstat-label">zbývá</span></div>
         <div class="game-stat"><span class="gstat-value" id="statTime">0</span><span class="gstat-label">sekund</span></div>
     </div>
 
@@ -136,12 +126,20 @@ include __DIR__ . '/../includes/header.php';
 
     <?php if ($mode === 'input'): ?>
     <div class="typing-input-wrapper">
-        <input type="text" inputmode="numeric" pattern="[0-9]*" id="mathInput" class="typing-input"
+        <input type="text" inputmode="<?= in_array($topic, ['zlomky','deleni','desetinna'], true) ? 'text' : 'numeric' ?>"
+               id="mathInput" class="typing-input"
                style="font-size:1.5rem;text-align:center"
                placeholder="napiš výsledek..." autocomplete="off" disabled>
         <button id="startBtn" class="btn-primary">Začít ▶</button>
         <button id="submitBtn" class="btn-primary" style="display:none">✓ OK</button>
     </div>
+    <?php if ($topic === 'zlomky' && $variant === 'kraceni'): ?>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">Zlomek piš ve tvaru 3/4</p>
+    <?php elseif ($topic === 'deleni' && $variant === 'se'): ?>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">Piš ve tvaru „3 zb 2"</p>
+    <?php elseif ($topic === 'desetinna'): ?>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">Desetinná čísla piš s čárkou, např. 4,5</p>
+    <?php endif; ?>
     <?php else: ?>
     <div class="math-choice-grid" id="choiceGrid" style="display:none"></div>
     <div style="text-align:center;margin-bottom:1rem">
@@ -166,14 +164,15 @@ include __DIR__ . '/../includes/header.php';
         <div class="result-item"><div class="result-value" id="resFinalTime">–</div><div class="result-label">Čas</div></div>
     </div>
     <div class="results-actions">
-        <a href="?mode=<?= $mode ?>&level=<?= $level ?>" class="btn-primary">↺ Hrát znovu</a>
+        <a href="<?= mathUrl(['topic' => $topic, 'v' => $variant]) ?>" class="btn-primary">↺ Hrát znovu</a>
         <a href="<?= BASE_URL ?>/dashboard.php" class="btn-secondary">← Rozcestník</a>
     </div>
     <div id="saveStatus" class="save-status"></div>
 </div>
 
 <script>
-const MATH_EXAMPLES = <?= json_encode($examples) ?>;
+const MATH_EXAMPLES = <?= json_encode(array_values($examples), JSON_UNESCAPED_UNICODE) ?>;
+const MATH_SET      = <?= json_encode($setLabel, JSON_UNESCAPED_UNICODE) ?>;
 const SAVE_URL      = '<?= BASE_URL ?>/games/math.php';
 </script>
 <?php if ($mode === 'input'): ?>
