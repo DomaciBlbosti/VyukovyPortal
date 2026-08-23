@@ -35,6 +35,16 @@ function czechCategories(): array {
         ['text' => 'b_lo jich pět','correct' => 'y', 'hint' => 'bylo — od slova být'],
         ['text' => 'zb_tek',       'correct' => 'y', 'hint' => 'zbytek — příbuzné se slovem být'],
         ['text' => 'b_valý',       'correct' => 'ý', 'hint' => 'bývalý — příbuzné se slovem být'],
+        // Protipříklady — po B se zdaleka ne vždy píše y
+        ['text' => 'b_t (tlouct)',   'correct' => 'í', 'hint' => 'bít = tlouct — pozor, být (existovat) se píše s ý'],
+        ['text' => 'b_lý sníh',      'correct' => 'í', 'hint' => 'bílý — barva, NENÍ vyjmenované slovo'],
+        ['text' => 'b_tva',          'correct' => 'i', 'hint' => 'bitva — NENÍ vyjmenované slovo'],
+        ['text' => 'ob_lí na poli',  'correct' => 'i', 'hint' => 'obilí — NENÍ vyjmenované slovo (pozor na obyvatel)'],
+        ['text' => 'b_cykl',         'correct' => 'i', 'hint' => 'bicykl — NENÍ vyjmenované slovo'],
+        ['text' => 'b_dlo (tyč)',    'correct' => 'i', 'hint' => 'bidlo = tyč pro slepice — kdežto bydlo = bydlení'],
+        ['text' => 'hodiny b_jí',    'correct' => 'i', 'hint' => 'bijí — od slovesa bít (tlouct)'],
+        ['text' => 'kab_na',         'correct' => 'i', 'hint' => 'kabina — NENÍ vyjmenované slovo'],
+        ['text' => 'sb_rka známek',  'correct' => 'í', 'hint' => 'sbírka — NENÍ vyjmenované slovo'],
     ]],
 
     'vyjm_l' => ['label' => 'Vyjmenovaná slova po L', 'icon' => '🇱', 'grades' => [3,4,5,6,7,8,9], 'items' => [
@@ -53,6 +63,16 @@ function czechCategories(): array {
         ['text' => 'pl_š',     'correct' => 'y', 'hint' => 'plyš — vyjmenované slovo'],
         ['text' => 'l_žař',    'correct' => 'y', 'hint' => 'lyžař — příbuzné se slovem lyže'],
         ['text' => 'spl_nout', 'correct' => 'y', 'hint' => 'splynout — příbuzné se slovem plynout'],
+        // Protipříklady — po L se často píše měkké i
+        ['text' => 'l_dé',        'correct' => 'i', 'hint' => 'lidé — NENÍ vyjmenované slovo'],
+        ['text' => 'l_ška',       'correct' => 'i', 'hint' => 'liška — NENÍ vyjmenované slovo'],
+        ['text' => 'l_pa',        'correct' => 'í', 'hint' => 'lípa (strom) — NENÍ vyjmenované slovo'],
+        ['text' => 'l_ný',        'correct' => 'í', 'hint' => 'líný — NENÍ vyjmenované slovo (pozor na lysý)'],
+        ['text' => 'kl_d',        'correct' => 'i', 'hint' => 'klid — NENÍ vyjmenované slovo'],
+        ['text' => 'bl_zko',      'correct' => 'í', 'hint' => 'blízko — NENÍ vyjmenované slovo (pozor na blýskat se)'],
+        ['text' => 'pl_vat',      'correct' => 'i', 'hint' => 'plivat — NENÍ vyjmenované slovo (pozor na plynout)'],
+        ['text' => 'sl_na',       'correct' => 'i', 'hint' => 'slina — NENÍ vyjmenované slovo (pozor na slyšet)'],
+        ['text' => 'l_st papíru', 'correct' => 'i', 'hint' => 'list — NENÍ vyjmenované slovo'],
     ]],
 
     'vyjm_m' => ['label' => 'Vyjmenovaná slova po M', 'icon' => 'Ⓜ️', 'grades' => [3,4,5,6,7,8,9], 'items' => [
@@ -70,6 +90,16 @@ function czechCategories(): array {
         ['text' => 'm_dlo',        'correct' => 'ý', 'hint' => 'mýdlo — příbuzné se slovem mýt'],
         ['text' => 'm_šlenka',     'correct' => 'y', 'hint' => 'myšlenka — příbuzné se slovem myslet'],
         ['text' => 'um_vadlo',     'correct' => 'y', 'hint' => 'umyvadlo — příbuzné se slovem mýt'],
+        // Protipříklady — po M rozhoduje význam slova
+        ['text' => 'm_t (vlastnit)', 'correct' => 'í', 'hint' => 'mít = vlastnit — kdežto mýt = umývat'],
+        ['text' => 'm_ska (nádoba)', 'correct' => 'i', 'hint' => 'miska — kdežto myška je zvíře'],
+        ['text' => 'm_lý',           'correct' => 'i', 'hint' => 'milý — NENÍ vyjmenované slovo'],
+        ['text' => 'm_nuta',         'correct' => 'i', 'hint' => 'minuta — NENÍ vyjmenované slovo'],
+        ['text' => 'm_mo',           'correct' => 'i', 'hint' => 'mimo — NENÍ vyjmenované slovo'],
+        ['text' => 'm_č na fotbal',  'correct' => 'í', 'hint' => 'míč — NENÍ vyjmenované slovo'],
+        ['text' => 'm_r a klid',     'correct' => 'í', 'hint' => 'mír — NENÍ vyjmenované slovo'],
+        ['text' => 'm_nce',          'correct' => 'i', 'hint' => 'mince — NENÍ vyjmenované slovo'],
+        ['text' => 'dej m_ to',      'correct' => 'i', 'hint' => 'mi = tvar zájmena já — kdežto my je zájmeno'],
     ]],
 
     'vyjm_p' => ['label' => 'Vyjmenovaná slova po P', 'icon' => '🅿️', 'grades' => [4,5,6,7,8,9], 'items' => [
@@ -85,6 +115,15 @@ function czechCategories(): array {
         ['text' => 'čep_řit se', 'correct' => 'ý', 'hint' => 'čepýřit se — vyjmenované slovo'],
         ['text' => 'p_šný',      'correct' => 'y', 'hint' => 'pyšný — příbuzné se slovem pýcha'],
         ['text' => 'p_tlák',     'correct' => 'y', 'hint' => 'pytlák — příbuzné se slovem pytel'],
+        // Protipříklady — po P je měkké i velmi časté
+        ['text' => 'p_l vodu',   'correct' => 'i', 'hint' => 'pil — od slovesa pít; kdežto pyl je z květů'],
+        ['text' => 'p_seň',      'correct' => 'í', 'hint' => 'píseň — NENÍ vyjmenované slovo'],
+        ['text' => 'p_lný žák',  'correct' => 'i', 'hint' => 'pilný — NENÍ vyjmenované slovo'],
+        ['text' => 'p_chat',     'correct' => 'í', 'hint' => 'píchat — NENÍ vyjmenované slovo (pozor na pýcha)'],
+        ['text' => 'p_vo',       'correct' => 'i', 'hint' => 'pivo — NENÍ vyjmenované slovo'],
+        ['text' => 'p_lot',      'correct' => 'i', 'hint' => 'pilot — NENÍ vyjmenované slovo'],
+        ['text' => 'p_skat',     'correct' => 'í', 'hint' => 'pískat — NENÍ vyjmenované slovo'],
+        ['text' => 'p_smeno',    'correct' => 'í', 'hint' => 'písmeno — NENÍ vyjmenované slovo'],
     ]],
 
     'vyjm_s' => ['label' => 'Vyjmenovaná slova po S', 'icon' => '🇸', 'grades' => [4,5,6,7,8,9], 'items' => [
@@ -100,6 +139,15 @@ function czechCategories(): array {
         ['text' => 's_čet',    'correct' => 'y', 'hint' => 'syčet — vyjmenované slovo'],
         ['text' => 's_pat',    'correct' => 'y', 'hint' => 'sypat — vyjmenované slovo'],
         ['text' => 's_neček',  'correct' => 'y', 'hint' => 'syneček — příbuzné se slovem syn'],
+        // Protipříklady — po S se často píše měkké i
+        ['text' => 's_lný',      'correct' => 'i', 'hint' => 'silný — NENÍ vyjmenované slovo (pozor na sytý)'],
+        ['text' => 's_rup',      'correct' => 'i', 'hint' => 'sirup — NENÍ vyjmenované slovo (pozor na sypat)'],
+        ['text' => 's_tko',      'correct' => 'í', 'hint' => 'sítko — NENÍ vyjmenované slovo (pozor na sýkora)'],
+        ['text' => 's_ra',       'correct' => 'í', 'hint' => 'síra (chemický prvek) — kdežto sýr je jídlo'],
+        ['text' => 's_dlo firmy','correct' => 'í', 'hint' => 'sídlo — NENÍ vyjmenované slovo'],
+        ['text' => 's_rka',      'correct' => 'i', 'hint' => 'sirka — NENÍ vyjmenované slovo'],
+        ['text' => 's_ť',        'correct' => 'í', 'hint' => 'síť — NENÍ vyjmenované slovo'],
+        ['text' => 's_la',       'correct' => 'í', 'hint' => 'síla — NENÍ vyjmenované slovo (pozor na sýkora)'],
     ]],
 
     'vyjm_v' => ['label' => 'Vyjmenovaná slova po V', 'icon' => '🇻', 'grades' => [4,5,6,7,8,9], 'items' => [
@@ -115,6 +163,15 @@ function czechCategories(): array {
         ['text' => 'pov_k',        'correct' => 'y', 'hint' => 'povyk (hluk) — vyjmenované slovo'],
         ['text' => 'cav_ky',       'correct' => 'y', 'hint' => 'cavyky (zbytečné okolky) — vyjmenované slovo'],
         ['text' => 'v_ška',        'correct' => 'ý', 'hint' => 'výška — příbuzné se slovem vysoký'],
+        // Protipříklady — po V rozhoduje význam slova
+        ['text' => 'v_dět',        'correct' => 'i', 'hint' => 'vidět — NENÍ vyjmenované slovo (pozor na vydra)'],
+        ['text' => 'v_tr',         'correct' => 'í', 'hint' => 'vítr — NENÍ vyjmenované slovo'],
+        ['text' => 'v_la (pohádková)','correct' => 'í', 'hint' => 'víla — NENÍ vyjmenované slovo'],
+        ['text' => 'v_r ve vodě',  'correct' => 'í', 'hint' => 'vír = točící se voda; kdežto výr je sova'],
+        ['text' => 'had se v_ne',  'correct' => 'i', 'hint' => 'vine se — od slovesa vinout'],
+        ['text' => 'v_tat hosty',  'correct' => 'í', 'hint' => 'vítat — NENÍ vyjmenované slovo'],
+        ['text' => 'v_dle',        'correct' => 'i', 'hint' => 'vidle — NENÍ vyjmenované slovo'],
+        ['text' => 'v_no',         'correct' => 'í', 'hint' => 'víno — NENÍ vyjmenované slovo'],
     ]],
 
     // Po Z jsou jen čtyři vyjmenovaná slova, proto sadu doplňují
@@ -130,6 +187,9 @@ function czechCategories(): array {
         ['text' => 'z_ma',       'correct' => 'i', 'hint' => 'zima — NENÍ vyjmenované slovo, píše se měkké i'],
         ['text' => 'z_skat',     'correct' => 'i', 'hint' => 'získat — NENÍ vyjmenované slovo, píše se měkké i'],
         ['text' => 'z_tra',      'correct' => 'í', 'hint' => 'zítra — NENÍ vyjmenované slovo, píše se měkké í'],
+        ['text' => 'z_sk',       'correct' => 'i', 'hint' => 'zisk — NENÍ vyjmenované slovo'],
+        ['text' => 'z_val nudou','correct' => 'í', 'hint' => 'zíval — NENÍ vyjmenované slovo'],
+        ['text' => 'z_ral na mě','correct' => 'í', 'hint' => 'zíral — NENÍ vyjmenované slovo'],
     ]],
 
     // ══ DVOJICE PODLE VÝZNAMU — rozhoduje kontext (4.–9. třída) ═══════════
@@ -165,6 +225,11 @@ function czechCategories(): array {
         ['text' => 'Na stromě sedí sov_.',            'correct' => 'y', 'hint' => 'sovy — rod ženský, vzor žena'],
         ['text' => 'Koupili jsme nové stol_.',        'correct' => 'y', 'hint' => 'stoly — rod mužský neživotný, vzor hrad'],
         ['text' => 'Pod postelí byly bot_.',          'correct' => 'y', 'hint' => 'boty — rod ženský, vzor žena'],
+        ['text' => 'Dva chlapc_ si hráli na písku.',   'correct' => 'i', 'hint' => 'chlapci — 1. pád mn. č. životný, vzor pán'],
+        ['text' => 'V rybníce plavou kapř_.',          'correct' => 'i', 'hint' => 'kapři — 1. pád mn. č. životný, vzor muž'],
+        ['text' => 'Před domem stáli hasič_.',         'correct' => 'i', 'hint' => 'hasiči — 1. pád mn. č. životný, vzor muž'],
+        ['text' => 'Na poli pracovali muž_.',          'correct' => 'i', 'hint' => 'muži — 1. pád mn. č. životný, vzor muž'],
+        ['text' => 'Ve výběhu odpočívali lv_.',        'correct' => 'i', 'hint' => 'lvi — 1. pád mn. č. životný, vzor pán'],
     ]],
 
     // ══ SHODA PŘÍSUDKU S PODMĚTEM (6. třída a výš) ════════════════════════
