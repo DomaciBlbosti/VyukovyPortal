@@ -1,6 +1,40 @@
 <?php
+/**
+ * Souboj hráčů — DOČASNĚ VYPNUTO.
+ *
+ * Hra funguje jen pro dva hráče u jednoho zařízení a má tři nedodělky:
+ * vítěz se určuje pouze podle rychlosti (přesnost se ignoruje), chybí
+ * handicap pro různě staré sourozence a zpracování vstupu je ve staré
+ * verzi, která na mobilních klávesnicích ztrácí znaky.
+ * Až se to doladí, stačí přepnout DUEL_ENABLED na true a vrátit hru
+ * do seznamu na rozcestníku (dashboard.php).
+ */
+const DUEL_ENABLED = false;
+
 require_once __DIR__ . '/../includes/auth.php';
 requireLogin();
+
+if (!DUEL_ENABLED) {
+    $pageTitle = 'Souboj hráčů';
+    include __DIR__ . '/../includes/header.php';
+    ?>
+    <div class="page-header">
+        <h1>⚔️ Souboj <span class="accent">hráčů</span></h1>
+    </div>
+    <div class="admin-card" style="max-width:560px">
+        <p style="color:var(--muted);line-height:1.7">
+            Souboj je zatím vypnutý — připravujeme spravedlivější hodnocení,
+            aby mohli soutěžit i různě staří sourozenci.
+        </p>
+        <p style="margin-top:1.25rem">
+            <a href="<?= BASE_URL ?>/dashboard.php" class="btn-primary">← Zpět na rozcestník</a>
+        </p>
+    </div>
+    <?php
+    include __DIR__ . '/../includes/footer.php';
+    exit;
+}
+
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/levels.php';
 

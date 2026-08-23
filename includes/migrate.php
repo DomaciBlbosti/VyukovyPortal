@@ -37,7 +37,15 @@ function runMigrations(PDO $db): array {
         if ($rows) $done[] = 'body dopočítány u ' . count($rows) . ' starších her';
     }
 
-    // 3. Výchozí levely (jen do prázdné tabulky — admin si je může přepsat)
+    // 3. users.grade — ročník žáka, podle něj se nabízí obtížnost (0 = neuvedeno)
+    try {
+        $db->query('SELECT grade FROM users LIMIT 1');
+    } catch (PDOException $e) {
+        $db->exec('ALTER TABLE users ADD COLUMN grade TINYINT NOT NULL DEFAULT 0');
+        $done[] = 'users.grade přidán';
+    }
+
+    // 4. Výchozí levely (jen do prázdné tabulky — admin si je může přepsat)
     if ((int)$db->query('SELECT COUNT(*) FROM levels')->fetchColumn() === 0) {
         $stmt = $db->prepare('INSERT INTO levels (level_number, points_required, title, icon) VALUES (?,?,?,?)');
         foreach (DEFAULT_LEVELS as $num => [$pts, $title, $icon]) {
@@ -46,7 +54,7 @@ function runMigrations(PDO $db): array {
         $done[] = count(DEFAULT_LEVELS) . ' výchozích levelů vloženo';
     }
 
-    // 4. Multiplikátory — doplň chybějící herní typy, existující nech být
+    // 5. Multiplikátory — doplň chybějící herní typy, existující nech být
     $existing = $db->query('SELECT game_type FROM game_multipliers')->fetchAll(PDO::FETCH_COLUMN);
     $stmt     = $db->prepare('INSERT INTO game_multipliers (game_type, label, multiplier) VALUES (?,?,?)');
     $added    = 0;

@@ -51,6 +51,20 @@ $categories = [
         ],
     ],
     [
+        'title' => '✍️ Čeština',
+        'games' => [
+            [
+                'id'          => 'czech',
+                'title'       => 'Píšeme i/y',
+                'icon'        => '✍️',
+                'description' => 'Vyjmenovaná slova, koncovky a shoda přísudku. Sady podle ročníku.',
+                'url'         => BASE_URL . '/games/czech.php',
+                'color'       => 'red',
+                'available'   => true,
+            ],
+        ],
+    ],
+    [
         'title' => '🔢 Matematika',
         'games' => [
             [
