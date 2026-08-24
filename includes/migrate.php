@@ -66,5 +66,15 @@ function runMigrations(PDO $db): array {
     }
     if ($added) $done[] = "$added multiplikátorů doplněno";
 
+    // 6. Popisky her — hodnotu multiplikátoru nastavuje admin, název ne,
+    //    takže ho smíme srovnat s kódem (čeština se rozrostla za i/y)
+    $stmt    = $db->prepare('UPDATE game_multipliers SET label = ? WHERE game_type = ? AND label <> ?');
+    $renamed = 0;
+    foreach (DEFAULT_MULTIPLIERS as $type => [$label, $mult]) {
+        $stmt->execute([$label, $type, $label]);
+        $renamed += $stmt->rowCount();
+    }
+    if ($renamed) $done[] = "popisků her aktualizováno: $renamed";
+
     return $done;
 }

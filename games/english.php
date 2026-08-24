@@ -6,9 +6,17 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/data/english.php';
+require_once __DIR__ . '/../includes/mistakes.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
+    // Chybovník vede každý směr překladu zvlášť — umět „dog → pes" ještě
+    // neznamená umět „pes → dog"
+    $saveTheme = (string)($_POST['theme'] ?? '');
+    $saveDir   = ($_POST['dir'] ?? '') === 'en_cs' ? 'en_cs' : 'cs_en';
+    $themeRow  = englishThemes()[$saveTheme] ?? null;
+    $saveTopic = $themeRow ? $saveTheme . ':' . $saveDir : '';
+    $saveLabel = $themeRow ? $themeRow['label'] . ' (' . ($saveDir === 'en_cs' ? 'EN→CZ' : 'CZ→EN') . ')' : '';
     echo json_encode(saveGameResult([
         'game_type'        => 'english',
         'wpm'              => floatval($_POST['wpm']       ?? 0),
@@ -17,6 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         'chars_typed'      => intval($_POST['chars_typed'] ?? 0),
         'errors'           => intval($_POST['errors']      ?? 0),
         'text_snippet'     => substr($_POST['text_snippet'] ?? 'anglictina', 0, 100),
+        'answers'          => parseAnswerPayload($_POST['answers'] ?? null),
+        'topic'            => $saveTopic,
+        'topic_label'      => $saveLabel,
     ]));
     exit;
 }
@@ -32,6 +43,13 @@ $dir  = ($_GET['dir']  ?? 'cs_en') === 'en_cs'  ? 'en_cs'  : 'cs_en';
 $mode = ($_GET['mode'] ?? 'choice') === 'input' ? 'input'  : 'choice';
 
 $tasks    = englishTasks($theme, 12, $dir, 4);
+
+// Adaptivní opakování: slovíčka, která dítě naposled splétlo, se do kola
+// vloží přednostně místo náhodně vylosovaných.
+$practiceList = practiceKeys((int)($_SESSION['user_id'] ?? 0), 'english', $theme . ':' . $dir, 4);
+englishInjectPractice($tasks, $practiceList, $theme, $dir);
+// Část slovíček z chybovníku se do kola dostane sama, i bez výměny
+$practiceCount = count(array_intersect(array_column($tasks, 'key'), $practiceList));
 $setLabel = $themes[$theme]['label'] . ' (' . ($dir === 'en_cs' ? 'EN→CZ' : 'CZ→EN') . ')';
 
 $pageTitle = 'Angličtina';
@@ -85,6 +103,12 @@ $taskNote = $theme !== 'nepravidelna' ? '' : ($dir === 'en_cs'
 ?>
 <?php if ($taskNote): ?>
 <div class="lesson-hint" style="margin-bottom:1rem">📌 <?= $taskNote ?></div>
+<?php endif; ?>
+
+<?php if ($practiceCount > 0): ?>
+<div class="lesson-hint lesson-hint-practice" style="margin-bottom:1rem">
+    🔁 <?= practiceNote($practiceCount, 'word') ?>
+</div>
 <?php endif; ?>
 
 <?php if ($grade > 0): ?>
@@ -156,6 +180,8 @@ $taskNote = $theme !== 'nepravidelna' ? '' : ($dir === 'en_cs'
 const EN_TASKS = <?= json_encode(array_values($tasks), JSON_UNESCAPED_UNICODE) ?>;
 const EN_SET   = <?= json_encode($setLabel, JSON_UNESCAPED_UNICODE) ?>;
 const EN_MODE  = <?= json_encode($mode) ?>;
+const EN_THEME = <?= json_encode($theme) ?>;
+const EN_DIR   = <?= json_encode($dir) ?>;
 const SAVE_URL = '<?= BASE_URL ?>/games/english.php';
 </script>
 <script src="<?= asset_url('/js/english_game.js') ?>"></script>

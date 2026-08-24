@@ -52,3 +52,22 @@ CREATE TABLE IF NOT EXISTS game_multipliers (
     label      VARCHAR(100) NOT NULL,
     multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mistakes (
+    id             INT          AUTO_INCREMENT PRIMARY KEY,
+    user_id        INT          NOT NULL,
+    game_type      VARCHAR(50)  NOT NULL,
+    topic          VARCHAR(80)  NOT NULL DEFAULT '',
+    topic_label    VARCHAR(120) NOT NULL DEFAULT '',
+    item_key       VARCHAR(180) NOT NULL,
+    prompt         VARCHAR(255) NOT NULL DEFAULT '',
+    correct_answer VARCHAR(255) NOT NULL DEFAULT '',
+    hint           VARCHAR(255) NOT NULL DEFAULT '',
+    wrong_count    INT          NOT NULL DEFAULT 0,
+    right_streak   INT          NOT NULL DEFAULT 0,
+    last_wrong_at  DATETIME     NULL,
+    updated_at     DATETIME     NULL,
+    UNIQUE KEY unique_mistake (user_id, game_type, item_key),
+    INDEX idx_practice (user_id, game_type, topic, right_streak),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -23,6 +23,7 @@
 
     let current = 0, correct = 0, wrong = 0;
     let startTime = null, timerInt = null;
+    const answers = []; // pro chybovník — co dítěti šlo a co ne
     const questionWrapper = document.querySelector('.math-question-wrapper');
 
     // Mobil: po otevření klávesnice prohlížeč odscrolluje k inputu a příklad
@@ -82,6 +83,9 @@
         feedbackEl.textContent = isOk ? '✔ Správně!' : `✘ Správně: ${examples[current].a}`;
         feedbackEl.className   = 'math-feedback ' + (isOk ? 'feedback-ok' : 'feedback-err');
 
+        answers.push({ key: examples[current].key, ok: isOk,
+                       prompt: examples[current].q, answer: examples[current].a });
+
         if (isOk) correct++; else wrong++;
         document.getElementById('statScore').textContent  = correct;
         document.getElementById('statErrors').textContent = wrong;
@@ -125,6 +129,9 @@
         fd.append('chars_typed', correct);
         fd.append('errors', wrong);
         fd.append('text_snippet', typeof MATH_SET !== 'undefined' ? MATH_SET : 'matematika');
+        fd.append('topic', MATH_TOPIC);
+        fd.append('variant', MATH_VARIANT);
+        fd.append('answers', JSON.stringify(answers));
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
             .then(d => renderReward(d, document.getElementById('saveStatus')));

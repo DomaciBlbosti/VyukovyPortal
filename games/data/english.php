@@ -711,23 +711,75 @@ function englishTasks(string $themeKey, int $count = 12, string $dir = 'cs_en', 
 
     $tasks = [];
     foreach ($picked as $w) {
-        $answer = $w[$aKey];
-
-        $distractors = [];
-        foreach ($pool as $other) {
-            if (englishNorm($other[$aKey]) !== englishNorm($answer)) $distractors[] = $other[$aKey];
-        }
-        shuffle($distractors);
-        $options = array_merge([$answer], array_slice($distractors, 0, max(1, $optionCount - 1)));
-        shuffle($options);
-
-        $tasks[] = [
-            'q'       => $w[$qKey],
-            'a'       => $answer,
-            'accept'  => englishAccept($answer),
-            'options' => array_values($options),
-            'hint'    => $w['en'] . ' = ' . $w['cs'],
-        ];
+        $tasks[] = englishBuildTask($w, $pool, $qKey, $aKey, $dir, $optionCount);
     }
     return $tasks;
+}
+
+/** Sestaví jednu úlohu včetně nabídky špatných možností ze stejného okruhu */
+function englishBuildTask(array $w, array $pool, string $qKey, string $aKey,
+                          string $dir, int $optionCount = 4): array {
+    $answer = $w[$aKey];
+
+    $distractors = [];
+    foreach ($pool as $other) {
+        if (englishNorm($other[$aKey]) !== englishNorm($answer)) $distractors[] = $other[$aKey];
+    }
+    shuffle($distractors);
+    $options = array_merge([$answer], array_slice($distractors, 0, max(1, $optionCount - 1)));
+    shuffle($options);
+
+    return [
+        // Klíč pro chybovník nese i směr — „dog → pes" a „pes → dog"
+        // jsou pro dítě dvě různé dovednosti
+        'key'     => $dir . ':' . $w['en'],
+        'q'       => $w[$qKey],
+        'a'       => $answer,
+        'accept'  => englishAccept($answer),
+        'options' => array_values($options),
+        'hint'    => $w['en'] . ' = ' . $w['cs'],
+    ];
+}
+
+/**
+ * Vymění v kole náhodné úlohy za ty, které dítě naposled splétlo.
+ *
+ * @param array $tasks kolo, mění se na místě
+ * @param array $keys  klíče z chybovníku (ve tvaru „směr:slovo")
+ * @return int kolik úloh se povedlo vyměnit
+ */
+function englishInjectPractice(array &$tasks, array $keys, string $themeKey, string $dir): int {
+    if (!$keys || !$tasks) return 0;
+
+    $themes = englishThemes();
+    if (!isset($themes[$themeKey])) return 0;
+    [$qKey, $aKey] = $dir === 'en_cs' ? ['en', 'cs'] : ['cs', 'en'];
+
+    // Nabídku špatných možností stavíme ze stejného okruhu jako v kole
+    $seenQ = $seenA = [];
+    $pool  = [];
+    foreach ($themes[$themeKey]['words'] as $w) {
+        $q = englishNorm($w[$qKey]);
+        $a = englishNorm($w[$aKey]);
+        if ($q === '' || $a === '' || isset($seenQ[$q]) || isset($seenA[$a])) continue;
+        $seenQ[$q] = $seenA[$a] = true;
+        $pool[]    = $w;
+    }
+    $byKey = array_column($pool, null, 'en');
+
+    $done = 0;
+    foreach ($keys as $key) {
+        $word = substr($key, strlen($dir) + 1);
+        if (!str_starts_with($key, $dir . ':') || !isset($byKey[$word])) continue;
+        if (in_array($key, array_column($tasks, 'key'), true)) continue;
+
+        // Přepiš úlohu, která sama není z chybovníku
+        foreach ($tasks as $i => $t) {
+            if (in_array($t['key'], $keys, true)) continue;
+            $tasks[$i] = englishBuildTask($byKey[$word], $pool, $qKey, $aKey, $dir);
+            $done++;
+            break;
+        }
+    }
+    return $done;
 }

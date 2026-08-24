@@ -17,6 +17,7 @@
     const resultsPanel  = document.getElementById('resultsPanel');
 
     let current = 0, correct = 0, wrong = 0, mistakes = [];
+    const answers = []; // pro chybovník — co dítěti šlo a co ne
     let startTime = null, timerInt = null, answered = false;
 
     // Stejné sjednocení zápisu jako na serveru (englishNorm v PHP): malá
@@ -104,6 +105,8 @@
                                      : '<strong class="feedback-err">✘ Chyba.</strong> ') +
                                '<span class="cz-hint">' + t.hint + '</span>';
 
+        answers.push({ key: t.key, ok: isOk, prompt: t.q, answer: t.a, hint: t.hint });
+
         if (isOk) {
             correct++;
         } else {
@@ -177,6 +180,9 @@
         fd.append('chars_typed', correct);
         fd.append('errors', wrong);
         fd.append('text_snippet', EN_SET);
+        fd.append('theme', EN_THEME);
+        fd.append('dir', EN_DIR);
+        fd.append('answers', JSON.stringify(answers));
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
             .then(d => renderReward(d, document.getElementById('saveStatus')));

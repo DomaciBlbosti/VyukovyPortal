@@ -7,9 +7,18 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/data/math.php';
+require_once __DIR__ . '/../includes/mistakes.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
+    // Sadu určuje server podle poslaného tématu a varianty, ne prohlížeč
+    $saveTopic = $saveLabel = '';
+    $t = (string)($_POST['topic'] ?? '');
+    $v = (string)($_POST['variant'] ?? '');
+    if (isset(mathTopics()[$t]['variants'][$v])) {
+        $saveTopic = $t . '/' . $v;
+        $saveLabel = mathTopics()[$t]['label'] . ' — ' . mathTopics()[$t]['variants'][$v];
+    }
     echo json_encode(saveGameResult([
         'game_type'        => 'math',
         'wpm'              => floatval($_POST['wpm']       ?? 0),
@@ -18,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         'chars_typed'      => intval($_POST['chars_typed'] ?? 0),
         'errors'           => intval($_POST['errors']      ?? 0),
         'text_snippet'     => substr($_POST['text_snippet'] ?? 'matematika', 0, 100),
+        'answers'          => parseAnswerPayload($_POST['answers'] ?? null),
+        'topic'            => $saveTopic,
+        'topic_label'      => $saveLabel,
     ]));
     exit;
 }
@@ -37,10 +49,18 @@ if (!isset($variants[$variant])) $variant = array_key_first($variants);
 $mode = ($_GET['mode'] ?? 'input') === 'choice' ? 'choice' : 'input';
 
 $examples = generateMathExamples($topic, $variant, 15);
-if ($mode === 'choice') {
-    foreach ($examples as &$ex) $ex['choices'] = mathChoices($ex['a']);
-    unset($ex);
+
+// Adaptivní opakování: příklady, které dítě naposled splétlo, dostanou
+// přednost před náhodně vylosovanými.
+$practiceRows = mistakesForPractice((int)($_SESSION['user_id'] ?? 0), 'math', $topic . '/' . $variant, 4);
+mathInjectPractice($examples, $practiceRows);
+$practiceCount = count(array_intersect(array_column($examples, 'q'), array_column($practiceRows, 'prompt')));
+
+foreach ($examples as &$ex) {
+    $ex['key'] = $topic . ':' . $variant . ':' . $ex['q'];   // klíč pro chybovník
+    if ($mode === 'choice') $ex['choices'] = mathChoices($ex['a']);
 }
+unset($ex);
 
 $setLabel  = $topics[$topic]['label'] . ' — ' . $variants[$variant];
 $pageTitle = 'Matematika';
@@ -99,6 +119,12 @@ $taskNote = match (true) {
 ?>
 <?php if ($taskNote): ?>
 <div class="lesson-hint" style="margin-bottom:1rem">📌 <?= $taskNote ?></div>
+<?php endif; ?>
+
+<?php if ($practiceCount > 0): ?>
+<div class="lesson-hint lesson-hint-practice" style="margin-bottom:1rem">
+    🔁 <?= practiceNote($practiceCount, 'ex') ?>
+</div>
 <?php endif; ?>
 
 <?php if ($grade > 0): ?>
@@ -173,6 +199,8 @@ $taskNote = match (true) {
 <script>
 const MATH_EXAMPLES = <?= json_encode(array_values($examples), JSON_UNESCAPED_UNICODE) ?>;
 const MATH_SET      = <?= json_encode($setLabel, JSON_UNESCAPED_UNICODE) ?>;
+const MATH_TOPIC    = <?= json_encode($topic) ?>;
+const MATH_VARIANT  = <?= json_encode($variant) ?>;
 const SAVE_URL      = '<?= BASE_URL ?>/games/math.php';
 </script>
 <?php if ($mode === 'input'): ?>

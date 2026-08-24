@@ -3,10 +3,14 @@ require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/levels.php';
+require_once __DIR__ . '/includes/daily.php';
+require_once __DIR__ . '/includes/mistakes.php';
 
 $user  = getCurrentUser();
 $db    = getDB();
 $myLvl = getUserLevel((int)$user['id']);
+$daily = dailyStats((int)$user['id']);
+$toFix = openMistakeCount((int)$user['id']);
 
 $stmt = $db->prepare('
     SELECT COUNT(*) AS total_games, ROUND(MAX(wpm),1) AS best_wpm,
@@ -55,9 +59,9 @@ $categories = [
         'games' => [
             [
                 'id'          => 'czech',
-                'title'       => 'Píšeme i/y',
+                'title'       => 'Pravopis',
                 'icon'        => '✍️',
-                'description' => 'Vyjmenovaná slova, koncovky a shoda přísudku. Sady podle ročníku.',
+                'description' => 'Vyjmenovaná slova, mě/mně, předložky s/z, velká písmena, ú/ů, koncovky a shoda přísudku. Sady podle ročníku.',
                 'url'         => BASE_URL . '/games/czech.php',
                 'color'       => 'red',
                 'available'   => true,
@@ -116,6 +120,31 @@ include __DIR__ . '/includes/header.php';
     <h1>Vítej, <span class="accent"><?= htmlspecialchars($user['display_name']) ?></span>!</h1>
     <p class="page-subtitle">Co dnes nacvičíme?</p>
 </div>
+
+<section class="daily-strip">
+    <?php if ($daily['streak'] > 0): ?>
+    <div class="daily-streak">🔥 <?= $daily['streak'] ?> <?= dayWord($daily['streak']) ?> v řadě</div>
+    <?php else: ?>
+    <div class="daily-streak daily-streak-off">🔥 Zahraj si dnes a rozjeď sérii</div>
+    <?php endif; ?>
+
+    <div class="daily-goal">
+        <div class="daily-goal-label">
+            <?php if ($daily['done']): ?>
+            <span class="daily-done">✔ Dnešní úkol splněn</span> — <?= $daily['today'] ?> <?= $daily['today'] < 5 ? 'kola' : 'kol' ?> za dnešek
+            <?php else: ?>
+            Dnešní úkol: <strong><?= $daily['today'] ?>/<?= $daily['goal'] ?></strong> kola
+            <?php endif; ?>
+        </div>
+        <div class="daily-goal-bar"><div class="daily-goal-fill" style="width:<?= $daily['percent'] ?>%"></div></div>
+    </div>
+
+    <?php if ($toFix > 0): ?>
+    <div class="daily-practice">
+        🔁 <a href="<?= BASE_URL ?>/stats.php#chyby"><?= $toFix ?> <?= $toFix === 1 ? 'úloha' : ($toFix < 5 ? 'úlohy' : 'úloh') ?> k zopakování</a>
+    </div>
+    <?php endif; ?>
+</section>
 
 <section class="level-card">
     <div class="level-badge-big"><?= $myLvl['icon'] ?></div>

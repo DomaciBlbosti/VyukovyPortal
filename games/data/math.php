@@ -265,3 +265,37 @@ function mathChoices(string $answer): array {
     shuffle($out);
     return $out;
 }
+
+/**
+ * Vymění v kole příklady za ty, které dítě naposled splétlo.
+ *
+ * Příklady se losují, takže je server zpětně nesestaví z datové sady —
+ * zadání i výsledek si ale pamatuje sám chybovník, což pro obnovení
+ * příkladu stačí.
+ *
+ * @param array $examples kolo, mění se na místě
+ * @param array $rows     řádky z mistakesForPractice()
+ * @return int kolik příkladů se povedlo vyměnit
+ */
+function mathInjectPractice(array &$examples, array $rows): int {
+    if (!$rows || !$examples) return 0;
+
+    $present = array_column($examples, 'q');
+    $wanted  = array_column($rows, 'prompt');
+    $done    = 0;
+
+    foreach ($rows as $r) {
+        $q = (string)($r['prompt'] ?? '');
+        $a = (string)($r['correct_answer'] ?? '');
+        if ($q === '' || $a === '' || in_array($q, $present, true)) continue;
+
+        foreach ($examples as $i => $ex) {
+            if (in_array($ex['q'], $wanted, true)) continue; // tuhle už opakujeme
+            $examples[$i] = ['q' => $q, 'a' => $a];
+            $present[$i]  = $q;
+            $done++;
+            break;
+        }
+    }
+    return $done;
+}

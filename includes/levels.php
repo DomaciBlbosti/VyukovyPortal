@@ -18,7 +18,7 @@ const DEFAULT_MULTIPLIERS = [
     'math'          => ['Matematika',      1.00],
     'geography'     => ['Zeměpis — otázky', 1.00],
     'geography_map' => ['Zeměpis — slepé mapy', 1.30],
-    'czech'         => ['Čeština — i/y',   1.20],
+    'czech'         => ['Čeština — pravopis', 1.20],
     'english'       => ['Angličtina — slovíčka', 1.10],
 ];
 
