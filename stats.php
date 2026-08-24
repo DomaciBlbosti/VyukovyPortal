@@ -3,6 +3,7 @@
 require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/mistakes_view.php';
 
 $user = getCurrentUser();
 $db   = getDB();
@@ -44,6 +45,8 @@ $stmt = $db->prepare('
 ');
 $stmt->execute([$user['id']]);
 $byType = $stmt->fetchAll();
+
+$mistakes  = mistakeOverview((int)$user['id']);
 
 $pageTitle = 'Moje statistiky';
 include __DIR__ . '/includes/header.php';
@@ -94,10 +97,23 @@ $hours   = intdiv($minutes, 60);
 </section>
 <?php endif; ?>
 
+<!-- Co si zopakovat -->
+<?php if ($mistakes): ?>
+<section class="stats-table-section" id="chyby">
+    <h2 class="section-title">🔁 Co si zopakovat</h2>
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+        Úlohy, které ti naposled nešly. Hry je samy zařadí do dalších kol —
+        po třech správných odpovědích za sebou ze seznamu zmizí.
+    </p>
+    <?php renderMistakeGroups($mistakes); ?>
+</section>
+<?php endif; ?>
+
 <!-- Statistiky podle typu hry -->
 <?php if (!empty($byType)): ?>
 <section class="stats-table-section">
     <h2 class="section-title">Podle typu hry</h2>
+    <div class="table-wrapper">
     <table class="data-table">
         <thead>
             <tr>
@@ -110,7 +126,7 @@ $hours   = intdiv($minutes, 60);
         <tbody>
             <?php foreach ($byType as $row): ?>
             <tr>
-                <td><?= htmlspecialchars($row['game_type']) ?></td>
+                <td><?= htmlspecialchars(gameTypeLabel($row['game_type'])) ?></td>
                 <td><?= $row['games'] ?></td>
                 <td class="accent"><?= $row['best_wpm'] ?></td>
                 <td><?= $row['avg_wpm'] ?></td>
@@ -118,6 +134,7 @@ $hours   = intdiv($minutes, 60);
             <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
 </section>
 <?php endif; ?>
 

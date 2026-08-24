@@ -103,10 +103,18 @@ function saveGameSession(array $data): int {
 function saveGameResult(array $data): array {
     require_once __DIR__ . '/levels.php';
     require_once __DIR__ . '/achievements.php';
+    require_once __DIR__ . '/mistakes.php';
     $user   = getCurrentUser();
     $before = getUserLevel($user['id']);
     $id     = saveGameSession($data);
     $after  = getUserLevel($user['id']);
+
+    // Chybovník: hry, které umí označit jednotlivé úlohy, pošlou jejich
+    // výsledky v 'answers'. Ostatní (psaní, zeměpis) klíč vůbec nepošlou.
+    if (!empty($data['answers'])) {
+        recordAnswers((int)$user['id'], $data['game_type'] ?? '', $data['answers'],
+                      (string)($data['topic'] ?? ''), (string)($data['topic_label'] ?? ''));
+    }
 
     return [
         'ok'           => true,

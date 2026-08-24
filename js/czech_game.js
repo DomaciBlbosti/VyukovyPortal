@@ -14,6 +14,7 @@
     const resultsPanel  = document.getElementById('resultsPanel');
 
     let current = 0, correct = 0, wrong = 0, mistakes = [];
+    const answers = []; // pro chybovník — co dítěti šlo a co ne
     let startTime = null, timerInt = null, answered = false;
 
     function renderDots() {
@@ -53,7 +54,8 @@
 
         t.options.forEach(opt => {
             const btn = document.createElement('button');
-            btn.className   = 'cz-choice-btn';
+            // mě/mně nebo velká písmena se do úzkého tlačítka nevejdou
+            btn.className   = 'cz-choice-btn' + (opt.length > 1 ? ' cz-choice-wide' : '');
             btn.textContent = opt;
             btn.dataset.val = opt;
             btn.addEventListener('click', () => pickAnswer(opt, btn));
@@ -85,11 +87,14 @@
         feedbackEl.innerHTML = (isOk ? '<strong class="feedback-ok">✔ Správně!</strong> ' : '<strong class="feedback-err">✘ Chyba.</strong> ') +
                                '<span class="cz-hint">' + t.hint + '</span>';
 
+        const filled = t.text.replace('_', t.correct);
+        answers.push({ key: t.key, ok: isOk, prompt: filled, answer: t.correct, hint: t.hint });
+
         if (isOk) {
             correct++;
         } else {
             wrong++;
-            mistakes.push({ text: t.text.replace('_', t.correct), hint: t.hint });
+            mistakes.push({ text: filled, hint: t.hint });
         }
         document.getElementById('statScore').textContent  = correct;
         document.getElementById('statErrors').textContent = wrong;
@@ -151,6 +156,8 @@
         fd.append('chars_typed', correct);
         fd.append('errors', wrong);
         fd.append('text_snippet', CZ_SET);
+        fd.append('cat', CZ_CAT);
+        fd.append('answers', JSON.stringify(answers));
         fetch(SAVE_URL, { method: 'POST', body: fd })
             .then(r => r.json())
             .then(d => renderReward(d, document.getElementById('saveStatus')));
