@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Odpovídá theme_color a background_color z manifest.php -->
+<resources>
+    <color name="colorPrimaryDark">#111118</color>
+    <color name="backgroundColor">#0A0A0F</color>
+    <color name="ic_launcher_background">#0A0A0F</color>
+</resources>

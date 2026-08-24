@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Aplikace nemá vlastní obrazovky, tak jen tmavé pozadí bez lišty -->
+    <style name="Theme.App" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/backgroundColor</item>
+    </style>
+</resources>

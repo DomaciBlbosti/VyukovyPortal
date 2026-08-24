@@ -1,0 +1,68 @@
+plugins { id 'com.android.application' }
+
+// Adresa portálu. Mění se jen tady — manifest i asset_statements si ji
+// vytáhnou odsud, ať nejde na dvou místech rozejít.
+def siteUrl    = project.findProperty('twaHost')  ?: 'https://vyuka.aleshulek.cz'
+def siteDomain = siteUrl.replaceFirst('^https?://', '')
+
+// Verzi předává build z CI; bez ní jedeme na 1.0. Hodnoty se počítají tady,
+// protože v Groovy by se `versionCode (…) as Integer` přetypovalo až po
+// zavolání setteru, který by dostal řetězec.
+def vCode = ((project.findProperty('twaVersionCode') ?: '1') as Integer)
+def vName = (project.findProperty('twaVersionName') ?: '1.0').toString()
+
+android {
+    namespace 'cz.aleshulek.vyuka'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'cz.aleshulek.vyuka'
+        minSdk        21
+        targetSdk     35
+        versionCode   vCode
+        versionName   vName
+
+        manifestPlaceholders = [
+            hostName        : siteDomain,
+            defaultUrl      : "$siteUrl/dashboard.php",
+            launchUrl       : '/dashboard.php',
+            // Barvy odpovídají manifest.php, ať na sebe splash a web navazují
+            statusBarColor  : '@color/colorPrimaryDark',
+            navBarColor     : '@color/backgroundColor',
+        ]
+        resValue 'string', 'asset_statements',
+                 '[{ \\"relation\\": [\\"delegate_permission/common.handle_all_urls\\"], ' +
+                 '\\"target\\": {\\"namespace\\": \\"web\\", \\"site\\": \\"' + siteUrl + '\\"}}]'
+    }
+
+    signingConfigs {
+        release {
+            // Klíč se předává z CI přes -P parametry; bez něj se build
+            // podepíše debug klíčem a APK je jen na vyzkoušení
+            if (project.hasProperty('storeFilePath')) {
+                storeFile     file(project.property('storeFilePath'))
+                storePassword project.property('storePassword')
+                keyAlias      project.property('keyAlias')
+                keyPassword   project.property('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig project.hasProperty('storeFilePath')
+                ? signingConfigs.release
+                : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}
