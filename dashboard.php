@@ -79,6 +79,20 @@ $categories = [
         ],
     ],
     [
+        'title' => '🇬🇧 Angličtina',
+        'games' => [
+            [
+                'id'          => 'english',
+                'title'       => 'Slovíčka',
+                'icon'        => '🇬🇧',
+                'description' => 'Překládej slovíčka oběma směry — vyber z možností, nebo je napiš. Okruhy podle ročníku.',
+                'url'         => BASE_URL . '/games/english.php',
+                'color'       => 'purple',
+                'available'   => true,
+            ],
+        ],
+    ],
+    [
         'title' => '🌍 Zeměpis',
         'games' => [
             [

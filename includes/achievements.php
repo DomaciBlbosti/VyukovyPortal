@@ -57,7 +57,7 @@ function achievementDefs(): array {
             'cond' => fn($s, $g) => $s['streak'] >= 7,
         ],
         'allrounder' => [
-            'title' => 'Všeuměl', 'desc' => 'Zahraj si psaní, matematiku, češtinu i zeměpis', 'icon' => '🎓',
+            'title' => 'Všeuměl', 'desc' => 'Zahraj si hry ze čtyř různých předmětů', 'icon' => '🎓',
             'cond' => fn($s, $g) => $s['subjects'] >= 4,
         ],
         'points_500' => [
@@ -76,6 +76,10 @@ function achievementDefs(): array {
             'title' => 'Počtář', 'desc' => 'Zahraj 10 kol matematiky', 'icon' => '🧮',
             'cond' => fn($s, $g) => $s['math_games'] >= 10,
         ],
+        'english_master' => [
+            'title' => 'Angličtinář', 'desc' => 'Zahraj 10 kol angličtiny', 'icon' => '🇬🇧',
+            'cond' => fn($s, $g) => $s['english_games'] >= 10,
+        ],
     ];
 }
 
@@ -90,6 +94,7 @@ function achievementStats(int $userId): array {
                SUM(CASE WHEN accuracy >= 100 THEN 1 ELSE 0 END)    AS perfect_games,
                SUM(CASE WHEN game_type = 'czech' THEN 1 ELSE 0 END) AS czech_games,
                SUM(CASE WHEN game_type = 'math'  THEN 1 ELSE 0 END) AS math_games,
+               SUM(CASE WHEN game_type = 'english' THEN 1 ELSE 0 END) AS english_games,
                COUNT(DISTINCT CASE
                      WHEN game_type IN ('classic','timed','blind','duel') THEN 'psani'
                      WHEN game_type LIKE 'geography%'                     THEN 'zemepis'
@@ -106,6 +111,7 @@ function achievementStats(int $userId): array {
         'perfect_games'   => (int)($s['perfect_games'] ?? 0),
         'czech_games'     => (int)($s['czech_games'] ?? 0),
         'math_games'      => (int)($s['math_games'] ?? 0),
+        'english_games'   => (int)($s['english_games'] ?? 0),
         'subjects'        => (int)($s['subjects'] ?? 0),
         'streak'          => currentStreak($userId),
     ];
