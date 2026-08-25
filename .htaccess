@@ -34,6 +34,14 @@ DirectoryIndex index.php
     </IfModule>
 </FilesMatch>
 
+# Digital Asset Links pro Android aplikaci (TWA).
+# Chrome ho hledá přesně na /.well-known/assetlinks.json, ale my ho
+# generujeme PHP skriptem, aby šel otisk klíče nastavit proměnnou prostředí.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^\.well-known/assetlinks\.json$ .well-known/assetlinks.php [L]
+</IfModule>
+
 # Přesměrování na HTTPS (odkomentuj na produkci)
 # RewriteEngine On
 # RewriteCond %{HTTPS} off

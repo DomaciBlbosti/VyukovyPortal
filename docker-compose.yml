@@ -39,6 +39,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-typemasterVychoziHeslo}
       # Cesta, pod kterou app běží za reverzní proxy ("" = kořen)
       BASE_URL: ${BASE_URL:-}
+      # Otisk podpisu Android aplikace (viz ANDROID-APP.md). Prázdné =
+      # /.well-known/assetlinks.json vrátí [] a appka běží s adresním řádkem.
+      TWA_SHA256_FINGERPRINT: ${TWA_SHA256_FINGERPRINT:-}
       # Poč. admin účet (založí se jen do prázdné DB)
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}

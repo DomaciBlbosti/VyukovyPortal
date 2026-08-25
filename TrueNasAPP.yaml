@@ -40,6 +40,8 @@ services:
       DB_USER: typemaster
       DB_PASSWORD: typemasterVychoziHeslo
       BASE_URL: ''
+      # Otisk podpisu Android aplikace (viz ANDROID-APP.md); prázdné = bez appky
+      TWA_SHA256_FINGERPRINT: ''
       ADMIN_USERNAME: admin
       # Nastav! Jinak se založí admin s heslem admin123.
       ADMIN_PASSWORD: ''
