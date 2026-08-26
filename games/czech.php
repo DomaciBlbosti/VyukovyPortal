@@ -8,11 +8,26 @@ require_once __DIR__ . '/../includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/data/czech.php';
 require_once __DIR__ . '/../includes/mistakes.php';
+require_once __DIR__ . '/../includes/selection.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
-    $saveCat  = (string)($_POST['cat'] ?? '');
-    $catLabel = czechCategories()[$saveCat]['label'] ?? '';
+    // Hraje-li se víc sad najednou, roztřídíme odpovědi zpátky podle toho,
+    // ze které sady úloha pochází — server si to dohledá sám, prohlížeči
+    // v tom nevěříme.
+    $allCats    = czechCategories();
+    $saveCats   = parseSelection((string)($_POST['cat'] ?? ''), $allCats);
+    $catOfText  = [];
+    foreach ($saveCats as $c) {
+        foreach ($allCats[$c]['items'] as $it) $catOfText[$it['text']] ??= $c;
+    }
+    $saveGroups = [];
+    foreach (parseAnswerPayload($_POST['answers'] ?? null) as $item) {
+        $c = $catOfText[$item['key']] ?? null;
+        if ($c === null) continue;
+        $saveGroups[$c] ??= ['topic' => $c, 'topic_label' => $allCats[$c]['label'], 'items' => []];
+        $saveGroups[$c]['items'][] = $item;
+    }
     echo json_encode(saveGameResult([
         'game_type'        => 'czech',
         'wpm'              => floatval($_POST['wpm']       ?? 0),
@@ -21,9 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         'chars_typed'      => intval($_POST['chars_typed'] ?? 0),
         'errors'           => intval($_POST['errors']      ?? 0),
         'text_snippet'     => substr($_POST['text_snippet'] ?? 'cestina', 0, 100),
-        'answers'          => parseAnswerPayload($_POST['answers'] ?? null),
-        'topic'            => $catLabel !== '' ? $saveCat : '',
-        'topic_label'      => $catLabel,
+        'answer_groups'    => array_values($saveGroups),
     ]));
     exit;
 }
@@ -32,16 +45,28 @@ $grade      = getUserGrade();
 $categories = czechCategoriesForGrade($grade);
 if (!$categories) $categories = czechCategories(); // pojistka pro nezvyklý ročník
 
-$cat = $_GET['cat'] ?? array_key_first($categories);
-if (!isset($categories[$cat])) $cat = array_key_first($categories);
+// Vybraných sad může být víc — „vyjmenovaná po B + po L"
+$cats = parseSelection($_GET['cat'] ?? null, $categories);
+$cat  = $cats[0];   // pro nabídku tlačítek u sad, které ji mají vlastní
+
+// Slij úlohy ze všech vybraných sad; každá si nese, odkud je, kvůli
+// nabídce tlačítek i chybovníku. Stejné zadání ve dvou sadách bereme jednou.
+$all = [];
+foreach ($cats as $c) {
+    foreach ($categories[$c]['items'] as $it) {
+        if (isset($all[$it['text']])) continue;
+        $it['_cat'] = $c;
+        $all[$it['text']] = $it;
+    }
+}
+$all = array_values($all);
 
 // Vyber 12 úloh vyváženě: kdyby se losovalo čistě náhodně, mohla by vyjít
 // samá slova s ypsilonem a dítě by prošlo strategií „mačkej pořád y".
 // Proto se ze skupin odpovědí bere střídavě.
 $want   = 12;
-$all    = $categories[$cat]['items'];
 $groups = [];
-foreach ($all as $it) $groups[czechAnswerGroup($it['correct'], $cat)][] = $it;
+foreach ($all as $it) $groups[czechAnswerGroup($it['correct'], $it['_cat'])][] = $it;
 foreach ($groups as &$g) shuffle($g);
 unset($g);
 
@@ -54,20 +79,26 @@ while (count($items) < $want) {
         $took = true;
     }
     unset($g);
-    if (!$took) break; // sada už nemá další úlohy
+    if (!$took) break; // sady už nemají další úlohy
 }
 
 // Adaptivní opakování: co dítě naposled splétlo, dostane přednost. Vyměníme
 // to za úlohu ze stejné skupiny odpovědí, aby kolo zůstalo vyvážené.
-$practiceKeys = practiceKeys((int)($_SESSION['user_id'] ?? 0), 'czech', $cat, 4);
+$practiceKeys = [];
+foreach ($cats as $c) {
+    $practiceKeys = array_merge($practiceKeys, practiceKeys((int)($_SESSION['user_id'] ?? 0), 'czech', $c, 4));
+}
+shuffle($practiceKeys);
+$practiceKeys = array_slice($practiceKeys, 0, 4);
+
 if ($practiceKeys) {
     $byText = array_column($all, null, 'text');
     $have   = array_column($items, 'text');
     foreach ($practiceKeys as $key) {
         if (!isset($byText[$key]) || in_array($key, $have, true)) continue;
-        $group = czechAnswerGroup($byText[$key]['correct'], $cat);
+        $group = czechAnswerGroup($byText[$key]['correct'], $byText[$key]['_cat']);
         foreach ($items as $i => $cur) {
-            if (czechAnswerGroup($cur['correct'], $cat) !== $group) continue;
+            if (czechAnswerGroup($cur['correct'], $cur['_cat']) !== $group) continue;
             if (in_array($cur['text'], $practiceKeys, true)) continue;
             $items[$i] = $byText[$key];
             $have[$i]  = $key;
@@ -86,8 +117,10 @@ $tasks = array_map(fn($it) => [
     'text'    => $it['text'],
     'correct' => $it['correct'],
     'hint'    => $it['hint'],
-    'options' => czechOptions($it['correct'], $cat),
+    'options' => czechOptions($it['correct'], $it['_cat']),
 ], $items);
+
+$setLabel = selectionLabel($cats, $categories);
 
 $pageTitle = 'Čeština';
 include __DIR__ . '/../includes/header.php';
@@ -100,12 +133,17 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="filters" style="margin-bottom:1.25rem">
     <div class="filter-group">
-        <span class="filter-label">Sada:</span>
-        <?php foreach ($categories as $key => $c): ?>
-        <a href="?cat=<?= urlencode($key) ?>" class="filter-btn <?= $key === $cat ? 'active' : '' ?>">
-            <?= htmlspecialchars($c['label']) ?>
+        <span class="filter-label">Sady:</span>
+        <?php foreach ($categories as $key => $c):
+            $on = in_array((string)$key, $cats, true); ?>
+        <a href="?cat=<?= urlencode(toggleSelection($cats, (string)$key, $categories)) ?>"
+           class="filter-btn filter-btn-multi <?= $on ? 'active' : '' ?>">
+            <?= $on ? '✓ ' : '' ?><?= $c['icon'] ?> <?= htmlspecialchars($c['label']) ?>
         </a>
         <?php endforeach; ?>
+        <?php if (count($cats) > 1): ?>
+        <a href="?cat=<?= urlencode($cats[0]) ?>" class="filter-btn filter-btn-reset">✕ jen jednu</a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -159,7 +197,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div id="czMistakes" style="margin:1.5rem 0;text-align:left;max-width:460px;margin-inline:auto"></div>
     <div class="results-actions">
-        <a href="?cat=<?= urlencode($cat) ?>" class="btn-primary">↺ Hrát znovu</a>
+        <a href="?cat=<?= urlencode(implode(',', $cats)) ?>" class="btn-primary">↺ Hrát znovu</a>
         <a href="<?= BASE_URL ?>/dashboard.php" class="btn-secondary">← Rozcestník</a>
     </div>
     <div id="saveStatus" class="save-status"></div>
@@ -167,8 +205,8 @@ include __DIR__ . '/../includes/header.php';
 
 <script>
 const CZ_TASKS = <?= json_encode(array_values($tasks), JSON_UNESCAPED_UNICODE) ?>;
-const CZ_SET   = <?= json_encode($categories[$cat]['label'], JSON_UNESCAPED_UNICODE) ?>;
-const CZ_CAT   = <?= json_encode($cat) ?>;
+const CZ_SET   = <?= json_encode($setLabel, JSON_UNESCAPED_UNICODE) ?>;
+const CZ_CAT   = <?= json_encode(implode(',', $cats)) ?>;
 const SAVE_URL = '<?= BASE_URL ?>/games/czech.php';
 </script>
 <script src="<?= asset_url('/js/czech_game.js') ?>"></script>

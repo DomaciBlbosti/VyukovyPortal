@@ -4,8 +4,17 @@ requireLogin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
+    // Sadu (kterou mapu / který okruh otázek) potřebují výzvy, aby šlo zadat
+    // konkrétní úkol. Ověřuje ji server proti vlastnímu seznamu.
+    require_once __DIR__ . '/../includes/catalog.php';
+    $saveType  = ($_POST['game_type'] ?? '') === 'geography_map' ? 'geography_map' : 'geography';
+    $saveTopic = (string)($_POST['topic'] ?? '');
+    if (!isset(catalogTasks()[$saveType]['items'][$saveTopic])) $saveTopic = '';
+
     echo json_encode(saveGameResult([
-        'game_type'        => $_POST['game_type'] ?? 'geography',
+        'game_type'        => $saveType,
+        'topic'            => $saveTopic,
+        'topic_label'      => catalogTasks()[$saveType]['items'][$saveTopic]['label'] ?? '',
         'wpm'              => floatval($_POST['wpm']       ?? 0),
         'accuracy'         => floatval($_POST['accuracy']  ?? 0),
         'duration_seconds' => intval($_POST['duration']    ?? 0),
@@ -463,6 +472,7 @@ include __DIR__ . '/../includes/header.php';
 </div>
 <script>
 const GEO_QUESTIONS = <?= json_encode(array_values($questions)) ?>;
+const GEO_TOPIC     = <?= json_encode($cat) ?>;
 const SAVE_URL = '<?= BASE_URL ?>/games/geography.php';
 </script>
 <script src="<?= asset_url('/js/geo_mc.js') ?>"></script>

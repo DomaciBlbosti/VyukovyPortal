@@ -470,7 +470,7 @@
         resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         const fd = new FormData();
-        fd.append('action','save'); fd.append('game_type','geography_map');
+        fd.append('action','save'); fd.append('game_type','geography_map'); fd.append('topic', typeof MAP_TYPE !== 'undefined' ? MAP_TYPE : '');
         fd.append('wpm', Math.round(correct / (elapsed / 60)));
         fd.append('accuracy', accuracy);
         fd.append('duration', Math.round(elapsed));

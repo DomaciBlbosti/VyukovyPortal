@@ -1283,3 +1283,70 @@ a:hover { text-decoration: underline; }
     .daily-strip { gap: .6rem .9rem; padding: .75rem .9rem; }
     .daily-goal { min-width: 100%; order: 3; }
 }
+
+/* ─── Přepínatelný výběr sad (dá se jich vybrat víc) ─── */
+.filter-btn-multi.active { font-weight: 700; }
+.filter-btn-reset { opacity: .7; font-size: .8rem; }
+
+/* ─── Editor výzev ──────────────────────────────────── */
+.step-row {
+    display: flex;
+    align-items: flex-end;
+    gap: .6rem;
+    flex-wrap: wrap;
+    padding: .6rem 0;
+    border-top: 1px solid var(--border);
+}
+.step-row .step-task { flex: 1 1 16rem; min-width: 0; }
+.step-num { display: flex; flex-direction: column; gap: .25rem; font-size: .75rem; color: var(--muted); font-family: var(--font-mono); }
+.step-num .form-input { width: 5rem; }
+.step-remove { padding: .45rem .7rem; }
+
+/* ─── Výzvy — pohled dítěte ─────────────────────────── */
+.challenge-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+}
+.challenge-card.challenge-done { border-color: var(--accent); }
+.challenge-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .5rem;
+}
+.challenge-title { font-weight: 700; font-size: 1rem; }
+.challenge-meta  { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.challenge-bar   { height: 8px; background: var(--bg3); border-radius: 99px; overflow: hidden; margin: .6rem 0 .85rem; }
+.challenge-fill  { height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s ease; }
+.challenge-step {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .45rem 0;
+    border-top: 1px solid var(--border);
+    font-size: .875rem;
+}
+.challenge-step-done .challenge-step-label { color: var(--muted); text-decoration: line-through; }
+.challenge-step-state { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.challenge-step-play { font-size: .8rem; white-space: nowrap; }
+.challenge-earned {
+    background: rgba(74,222,128,.12);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: .75rem 1rem;
+    margin: .75rem auto;
+    max-width: 460px;
+    font-size: .9rem;
+    animation: fadeInUp .5s ease both;
+}
+@media (max-width: 640px) {
+    /* Na úzkém displeji se popisek úkolu láme — stav pak patří pod něj */
+    .challenge-step { flex-direction: column; align-items: flex-start; gap: .2rem; }
+    .challenge-step-state { white-space: normal; }
+    .step-row .step-task { flex-basis: 100%; }
+}

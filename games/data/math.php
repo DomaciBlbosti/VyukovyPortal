@@ -299,3 +299,43 @@ function mathInjectPractice(array &$examples, array $rows): int {
     }
     return $done;
 }
+
+/**
+ * Příklady z několika variant dohromady (např. řada 6 + řada 7).
+ * Z každé varianty se vezme stejný díl a výsledek se zamíchá, ať se řady
+ * střídají a dítě nemůže jet jednu řadu ze setrvačnosti.
+ *
+ * @param array<string> $variants klíče variant
+ * @return array<array{q:string,a:string,variant:string}>
+ */
+function generateMathExamplesMulti(string $topic, array $variants, int $count): array {
+    $variants = array_values(array_filter($variants, fn($v) => isset(mathTopics()[$topic]['variants'][$v])));
+    if (!$variants) return [];
+
+    $per = (int)ceil($count / count($variants));
+    $all = [];
+    foreach ($variants as $v) {
+        foreach (generateMathExamples($topic, (string)$v, $per) as $ex) {
+            $ex['variant'] = (string)$v;
+            $all[] = $ex;
+        }
+    }
+    shuffle($all);
+    return array_slice($all, 0, $count);
+}
+
+/** Klíč příkladu pro chybovník — nese téma i variantu, ať jde chyba dohledat */
+function mathItemKey(string $topic, string $variant, string $question): string {
+    return $topic . ':' . $variant . ':' . $question;
+}
+
+/** Z klíče zpátky variantu; vrací null, když klíč nepatří k povoleným */
+function mathVariantFromKey(string $key, string $topic, array $allowed): ?string {
+    $prefix = $topic . ':';
+    if (!str_starts_with($key, $prefix)) return null;
+    $rest = substr($key, strlen($prefix));
+    $pos  = strpos($rest, ':');
+    if ($pos === false) return null;
+    $variant = substr($rest, 0, $pos);
+    return in_array($variant, array_map('strval', $allowed), true) ? $variant : null;
+}

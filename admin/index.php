@@ -108,6 +108,7 @@ include __DIR__ . '/../includes/header.php';
         <p class="page-subtitle">Sprava uzivatelu a systemu</p>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="<?= BASE_URL ?>/admin/vyzvy.php" class="btn-secondary">🎯 Výzvy</a>
         <a href="<?= BASE_URL ?>/admin/deti.php" class="btn-secondary">👨‍👩‍👧 Přehled dětí</a>
         <a href="<?= BASE_URL ?>/admin/levels.php" class="btn-secondary">🏆 Levely &amp; body</a>
         <a href="<?= BASE_URL ?>/admin/system.php" class="btn-secondary">🔄 Systém &amp; aktualizace</a>

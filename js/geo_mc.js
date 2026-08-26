@@ -130,7 +130,7 @@
         resultsPanel.style.display  = 'block';
 
         const fd = new FormData();
-        fd.append('action','save'); fd.append('game_type','geography');
+        fd.append('action','save'); fd.append('game_type','geography'); fd.append('topic', typeof GEO_TOPIC !== 'undefined' ? GEO_TOPIC : '');
         fd.append('wpm',wpm); fd.append('accuracy',accuracy);
         fd.append('duration',Math.round(elapsed));
         fd.append('chars_typed',correct); fd.append('errors',wrong);
