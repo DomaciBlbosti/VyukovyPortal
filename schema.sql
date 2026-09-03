@@ -71,3 +71,47 @@ CREATE TABLE IF NOT EXISTS mistakes (
     INDEX idx_practice (user_id, game_type, topic, right_streak),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS challenges (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    title       VARCHAR(120) NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+    created_by  INT          NULL,
+    created_at  DATETIME     NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS challenge_steps (
+    id           INT          AUTO_INCREMENT PRIMARY KEY,
+    challenge_id INT          NOT NULL,
+    position     INT          NOT NULL DEFAULT 0,
+    game_type    VARCHAR(50)  NOT NULL,
+    topic        VARCHAR(120) NOT NULL DEFAULT '',
+    rounds       INT          NOT NULL DEFAULT 1,
+    min_accuracy INT          NOT NULL DEFAULT 90,
+    INDEX idx_challenge (challenge_id),
+    FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS challenge_assignments (
+    id           INT      AUTO_INCREMENT PRIMARY KEY,
+    challenge_id INT      NOT NULL,
+    user_id      INT      NOT NULL,
+    assigned_at  DATETIME NULL,
+    completed_at DATETIME NULL,
+    UNIQUE KEY unique_assignment (challenge_id, user_id),
+    INDEX idx_user (user_id, completed_at),
+    FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS challenge_progress (
+    id            INT          AUTO_INCREMENT PRIMARY KEY,
+    assignment_id INT          NOT NULL,
+    step_id       INT          NOT NULL,
+    done_rounds   INT          NOT NULL DEFAULT 0,
+    best_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0,
+    updated_at    DATETIME     NULL,
+    UNIQUE KEY unique_progress (assignment_id, step_id),
+    FOREIGN KEY (assignment_id) REFERENCES challenge_assignments(id) ON DELETE CASCADE,
+    FOREIGN KEY (step_id) REFERENCES challenge_steps(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

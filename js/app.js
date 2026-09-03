@@ -55,8 +55,25 @@ function renderReward(data, statusEl) {
     const badge = panel.querySelector('.points-earned');
     badge ? badge.after(box) : (anchor ? anchor.after(box) : panel.prepend(box));
 
-    // Nově získané odznaky — vkládáme za sebe, ať drží pořadí
+    // Splněné kroky výzvy a dokončené výzvy
     let anchorEl = box;
+    const ch = data.challenge || {};
+    (ch.challenges || []).forEach(title => {
+        const el = document.createElement('div');
+        el.className = 'challenge-earned';
+        el.innerHTML = '<strong>🏆 Výzva splněna: ' + title + '</strong>';
+        anchorEl.after(el);
+        anchorEl = el;
+    });
+    (ch.steps || []).forEach(label => {
+        const el = document.createElement('div');
+        el.className = 'challenge-earned';
+        el.innerHTML = '✔ Úkol z výzvy hotový: <strong>' + label + '</strong>';
+        anchorEl.after(el);
+        anchorEl = el;
+    });
+
+    // Nově získané odznaky — vkládáme za sebe, ať drží pořadí
     (data.achievements || []).forEach(a => {
         const el = document.createElement('div');
         el.className = 'achievement-earned';

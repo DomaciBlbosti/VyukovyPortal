@@ -110,11 +110,31 @@ function saveGameResult(array $data): array {
     $after  = getUserLevel($user['id']);
 
     // Chybovník: hry, které umí označit jednotlivé úlohy, pošlou jejich
-    // výsledky v 'answers'. Ostatní (psaní, zeměpis) klíč vůbec nepošlou.
+    // výsledky v 'answers'. Ostatní (psaní) klíč vůbec nepošlou.
+    //
+    // Když se hraje víc sad najednou (řada 6 + 7), přijdou odpovědi rozdělené
+    // po sadách v 'answer_groups' — jinak by se chybovník slil do jedné hromady
+    // a při pozdějším tréninku samotné sedmičky by se chyby nenabídly.
     if (!empty($data['answers'])) {
         recordAnswers((int)$user['id'], $data['game_type'] ?? '', $data['answers'],
                       (string)($data['topic'] ?? ''), (string)($data['topic_label'] ?? ''));
     }
+    foreach ($data['answer_groups'] ?? [] as $group) {
+        if (empty($group['items'])) continue;
+        recordAnswers((int)$user['id'], $data['game_type'] ?? '', $group['items'],
+                      (string)($group['topic'] ?? ''), (string)($group['topic_label'] ?? ''));
+    }
+
+    // Výzvy: které sady se v tomhle kole opravdu hrály
+    require_once __DIR__ . '/challenges.php';
+    $playedTopics = [];
+    if (($data['topic'] ?? '') !== '') $playedTopics[] = (string)$data['topic'];
+    foreach ($data['answer_groups'] ?? [] as $group) {
+        if (($group['topic'] ?? '') !== '') $playedTopics[] = (string)$group['topic'];
+    }
+    $challenge = recordChallengePlay((int)$user['id'], (string)($data['game_type'] ?? ''),
+                                     array_values(array_unique($playedTopics)),
+                                     (float)($data['accuracy'] ?? 0));
 
     return [
         'ok'           => true,
@@ -123,5 +143,6 @@ function saveGameResult(array $data): array {
         'level'        => $after,
         'levelup'      => $after['level'] > $before['level'],
         'achievements' => checkAchievements((int)$user['id'], $data),
+        'challenge'    => $challenge,
     ];
 }

@@ -5,12 +5,14 @@ require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/levels.php';
 require_once __DIR__ . '/includes/daily.php';
 require_once __DIR__ . '/includes/mistakes.php';
+require_once __DIR__ . '/includes/challenges.php';
 
 $user  = getCurrentUser();
 $db    = getDB();
 $myLvl = getUserLevel((int)$user['id']);
 $daily = dailyStats((int)$user['id']);
 $toFix = openMistakeCount((int)$user['id']);
+$myChallenges = userChallenges((int)$user['id'], true);
 
 $stmt = $db->prepare('
     SELECT COUNT(*) AS total_games, ROUND(MAX(wpm),1) AS best_wpm,
@@ -120,6 +122,33 @@ include __DIR__ . '/includes/header.php';
     <h1>Vítej, <span class="accent"><?= htmlspecialchars($user['display_name']) ?></span>!</h1>
     <p class="page-subtitle">Co dnes nacvičíme?</p>
 </div>
+
+<?php if ($myChallenges): ?>
+<section style="margin-bottom:1.5rem">
+    <h2 class="section-title">🎯 Zadané výzvy</h2>
+    <?php foreach (array_slice($myChallenges, 0, 2) as $c): ?>
+    <div class="challenge-card">
+        <div class="challenge-head">
+            <span class="challenge-title">🎯 <?= htmlspecialchars($c['title']) ?></span>
+            <span class="challenge-meta"><?= $c['done_steps'] ?>/<?= $c['total_steps'] ?> úkolů</span>
+        </div>
+        <div class="challenge-bar"><div class="challenge-fill" style="width:<?= $c['percent'] ?>%"></div></div>
+        <?php foreach ($c['steps'] as $s): if ($s['done']) continue; ?>
+        <div class="challenge-step">
+            <span class="challenge-step-label">▢ <?= htmlspecialchars($s['label']) ?></span>
+            <span class="challenge-step-state">
+                <?= $s['done_rounds'] ?>/<?= $s['rounds'] ?>× · min <?= (int)$s['min_accuracy'] ?> %
+                <a class="challenge-step-play" href="<?= htmlspecialchars($s['url']) ?>">hrát →</a>
+            </span>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endforeach; ?>
+    <?php if (count($myChallenges) > 2): ?>
+    <p style="font-size:.85rem"><a href="<?= BASE_URL ?>/vyzvy.php">…a další <?= count($myChallenges) - 2 ?> — zobrazit všechny</a></p>
+    <?php endif; ?>
+</section>
+<?php endif; ?>
 
 <section class="daily-strip">
     <?php if ($daily['streak'] > 0): ?>
