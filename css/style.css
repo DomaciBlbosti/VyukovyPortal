@@ -1350,3 +1350,32 @@ a:hover { text-decoration: underline; }
     .challenge-step-state { white-space: normal; }
     .step-row .step-task { flex-basis: 100%; }
 }
+
+/* ── Sady z učebnic ───────────────────────────────────────────── */
+.challenge-card-list { display: grid; gap: .75rem; }
+
+.set-card {
+    display: block;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color .2s, transform .2s;
+}
+.set-card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+.set-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; margin-bottom: .3rem; }
+
+/* Text ke čtení — u typu „cteni" zůstává nad úlohami, dokud kolo běží */
+.set-passage {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    line-height: 1.65;
+}
+.set-passage p { margin: 0 0 .75rem; }
+.set-passage p:last-child { margin-bottom: 0; }

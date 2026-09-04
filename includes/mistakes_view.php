@@ -32,10 +32,15 @@ function renderMistakeGroups(array $groups, bool $withHints = true): void {
             </div>
             <?php foreach ($g['items'] as $it):
                 // U češtiny a angličtiny je odpověď součástí zadání („Bez mě to
-                // nezvládneš."), u matematiky ji musíme doplnit („8 × 7 = 56")
-                $shown = $g['game_type'] === 'math'
-                    ? trim($it['prompt'] . ' ' . $it['correct_answer'])
-                    : $it['prompt'];
+                // nezvládneš."), u matematiky ji musíme doplnit („8 × 7 = 56").
+                // Vlastní sady jsou obojí — doplňovačka má mezeru, dvojice ne.
+                $shown = match (true) {
+                    $g['game_type'] === 'math'  => trim($it['prompt'] . ' ' . $it['correct_answer']),
+                    $g['game_type'] === 'sada'  => str_contains($it['prompt'], '_')
+                        ? str_replace('_', $it['correct_answer'], $it['prompt'])
+                        : $it['prompt'] . ' → ' . $it['correct_answer'],
+                    default                     => $it['prompt'],
+                };
             ?>
             <div class="mistake-row">
                 <span>

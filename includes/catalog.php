@@ -107,6 +107,19 @@ function catalogTasks(): array {
     }
     $c['geography_map'] = ['label' => 'Zeměpis — slepé mapy', 'icon' => '🗺', 'items' => $items];
 
+    // ── Vlastní sady z učebnic: přibývají za běhu, čtou se z databáze ──
+    require_once __DIR__ . '/sets.php';
+    $items = [];
+    foreach (listSets() as $s) {
+        $items[(string)$s['id']] = [
+            'label' => setSubjectLabel($s['subject']) . ' · ' . $s['title'],
+            'url'   => $base . '/games/sada.php?id=' . (int)$s['id'],
+        ];
+    }
+    if ($items) {
+        $c['sada'] = ['label' => 'Sady z učebnic', 'icon' => '📚', 'items' => $items];
+    }
+
     // ── Psaní: nedá se vybrat konkrétní sada, bere se jakékoliv kolo ──
     $c['classic'] = ['label' => 'Psaní — klasický režim', 'icon' => '📝',
                      'items' => ['' => ['label' => 'jakékoliv kolo', 'url' => $base . '/games/classic.php']]];
