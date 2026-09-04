@@ -114,6 +114,33 @@ $categories = [
     ],
 ];
 
+// Sady z učebnic přibývají za běhu, takže se dlaždice skládají z databáze.
+// Každý předmět jedna — na sady uvnitř se proklikne dál.
+require_once __DIR__ . '/includes/sets.php';
+$setGames = [];
+$setColors = ['blue', 'green', 'purple', 'orange', 'red'];
+foreach (listSets(getUserGrade()) as $i => $s) {
+    $subject = $s['subject'];
+    if (isset($setGames[$subject])) { $setGames[$subject]['count']++; continue; }
+    $setGames[$subject] = [
+        'id'        => 'sada-' . $subject,
+        'title'     => SET_SUBJECTS[$subject]['label'] ?? 'Sady',
+        'icon'      => SET_SUBJECTS[$subject]['icon'] ?? '📚',
+        'url'       => BASE_URL . '/sady.php',
+        'color'     => $setColors[count($setGames) % count($setColors)],
+        'available' => true,
+        'count'     => 1,
+    ];
+}
+if ($setGames) {
+    foreach ($setGames as &$g) {
+        $word = $g['count'] === 1 ? 'sada' : ($g['count'] < 5 ? 'sady' : 'sad');
+        $g['description'] = $g['count'] . ' ' . $word . ' přesně podle učebnice.';
+    }
+    unset($g);
+    $categories[] = ['title' => '📚 Sady z učebnic', 'games' => array_values($setGames)];
+}
+
 $pageTitle = 'Rozcestník';
 include __DIR__ . '/includes/header.php';
 ?>

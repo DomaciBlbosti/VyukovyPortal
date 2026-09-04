@@ -20,6 +20,7 @@ const DEFAULT_MULTIPLIERS = [
     'geography_map' => ['Zeměpis — slepé mapy', 1.30],
     'czech'         => ['Čeština — pravopis', 1.20],
     'english'       => ['Angličtina — slovíčka', 1.10],
+    'sada'          => ['Sady z učebnic',  1.20],
 ];
 
 // Výchozí levely (level => [body, název, ikona])

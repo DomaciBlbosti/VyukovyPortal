@@ -115,3 +115,30 @@ CREATE TABLE IF NOT EXISTS challenge_progress (
     FOREIGN KEY (assignment_id) REFERENCES challenge_assignments(id) ON DELETE CASCADE,
     FOREIGN KEY (step_id) REFERENCES challenge_steps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS custom_sets (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    subject    VARCHAR(40)  NOT NULL DEFAULT 'ostatni',
+    grade      TINYINT      NOT NULL DEFAULT 0,
+    title      VARCHAR(120) NOT NULL,
+    source     VARCHAR(180) NOT NULL DEFAULT '',
+    kind       VARCHAR(20)  NOT NULL DEFAULT 'dvojice',
+    passage    TEXT         NULL,
+    created_by INT          NULL,
+    created_at DATETIME     NULL,
+    updated_at DATETIME     NULL,
+    INDEX idx_subject (subject, grade)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS custom_set_items (
+    id       INT          AUTO_INCREMENT PRIMARY KEY,
+    set_id   INT          NOT NULL,
+    position INT          NOT NULL DEFAULT 0,
+    item_key VARCHAR(180) NOT NULL,
+    prompt   VARCHAR(500) NOT NULL,
+    answer   VARCHAR(255) NOT NULL,
+    options  TEXT         NULL,
+    hint     VARCHAR(255) NOT NULL DEFAULT '',
+    INDEX idx_set (set_id, position),
+    FOREIGN KEY (set_id) REFERENCES custom_sets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
