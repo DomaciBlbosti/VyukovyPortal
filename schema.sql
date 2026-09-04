@@ -142,3 +142,34 @@ CREATE TABLE IF NOT EXISTS custom_set_items (
     INDEX idx_set (set_id, position),
     FOREIGN KEY (set_id) REFERENCES custom_sets(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    setting_key   VARCHAR(60) NOT NULL PRIMARY KEY,
+    setting_value TEXT        NULL,
+    updated_at    DATETIME    NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ocr_jobs (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    title      VARCHAR(120) NOT NULL DEFAULT '',
+    note       VARCHAR(255) NOT NULL DEFAULT '',
+    edited_text MEDIUMTEXT  NULL,
+    created_by INT          NULL,
+    created_at DATETIME     NULL,
+    updated_at DATETIME     NULL,
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ocr_pages (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    job_id     INT          NOT NULL,
+    position   INT          NOT NULL DEFAULT 0,
+    filename   VARCHAR(180) NOT NULL DEFAULT '',
+    image_b64  MEDIUMTEXT   NULL,
+    status     VARCHAR(20)  NOT NULL DEFAULT 'ceka',
+    text       MEDIUMTEXT   NULL,
+    error      VARCHAR(255) NOT NULL DEFAULT '',
+    seconds    INT          NOT NULL DEFAULT 0,
+    INDEX idx_job (job_id, position),
+    FOREIGN KEY (job_id) REFERENCES ocr_jobs(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
