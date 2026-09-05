@@ -52,6 +52,7 @@
                         job_id: jobId,
                         title: document.getElementById('job_title').value,
                         note:  document.getElementById('job_note').value,
+                        provider: document.getElementById('job_provider').value,
                         filename: files[i].name,
                         image,
                     });

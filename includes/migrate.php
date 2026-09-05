@@ -66,7 +66,25 @@ function runMigrations(PDO $db): array {
     }
     if ($added) $done[] = "$added multiplikátorů doplněno";
 
-    // 6. Popisky her — hodnotu multiplikátoru nastavuje admin, název ne,
+    // 6. Sloupce, které přibyly k už existujícím tabulkám skenování
+    //    (CREATE TABLE IF NOT EXISTS je do hotové tabulky sám nedoplní)
+    foreach ([
+        ['ocr_jobs',  'provider',    "ALTER TABLE ocr_jobs ADD COLUMN provider VARCHAR(20) NOT NULL DEFAULT ''"],
+        ['ocr_pages', 'edited_text', 'ALTER TABLE ocr_pages ADD COLUMN edited_text MEDIUMTEXT NULL'],
+    ] as [$table, $column, $sql]) {
+        try {
+            $db->query("SELECT $column FROM $table LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $db->exec($sql);
+                $done[] = "$table.$column přidán";
+            } catch (PDOException $e2) {
+                // Tabulka ještě neexistuje (čerstvá instalace) — vznikne ze schema.sql
+            }
+        }
+    }
+
+    // 7. Popisky her — hodnotu multiplikátoru nastavuje admin, název ne,
     //    takže ho smíme srovnat s kódem (čeština se rozrostla za i/y)
     $stmt    = $db->prepare('UPDATE game_multipliers SET label = ? WHERE game_type = ? AND label <> ?');
     $renamed = 0;

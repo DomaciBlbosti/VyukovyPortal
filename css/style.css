@@ -1379,3 +1379,18 @@ a:hover { text-decoration: underline; }
 }
 .set-passage p { margin: 0 0 .75rem; }
 .set-passage p:last-child { margin-bottom: 0; }
+
+/* ── Porovnání originální stránky s přepisem ──────────────────── */
+.ocr-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1rem; }
+.ocr-original img {
+    width: 100%;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: #fff;          /* fotky stránek jsou bílé, ať nesplynou s tmavým pozadím */
+}
+.ocr-transcript textarea { width: 100%; }
+
+/* Na mobilu pod sebe — vedle sebe by se ani jedno nedalo přečíst */
+@media (max-width: 800px) {
+    .ocr-compare { grid-template-columns: 1fr; }
+}

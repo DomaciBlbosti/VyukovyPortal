@@ -1,81 +1,20 @@
 <?php
 /**
- * Připojení na Ollamu — přepis naskenovaných stránek a jejich převod na sadu.
+ * Ollama — model běžící u tebe doma.
  *
- * Běží u tebe doma, takže se fotky učebnic nikam neposílají. Ollama je ale
- * pomalá: jedna stránka trvá desítky sekund až minuty, proto se stránky
- * zpracovávají po jedné a prohlížeč si o další říká sám.
- *
- * Adresa i modely se nastavují v adminu, protože každý si Ollamu pouští
- * jinde — vedle v kontejneru, na jiném stroji v síti.
+ * Tenhle soubor umí jen mluvit s Ollamou. Co se modelu říká, sestavuje
+ * includes/llm.php, aby se stejné zadání dalo poslat i komerčnímu API.
  */
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/settings.php';
 
-const OLLAMA_DEFAULTS = [
-    'ollama_url'          => 'http://ollama:11434',
-    'ollama_vision_model' => '',
-    'ollama_text_model'   => '',
-    'ollama_num_ctx'      => '8192',
-];
-
-/**
- * Načtená nastavení. Držíme je pohromadě, ať se kvůli třem hodnotám nechodí
- * do databáze třikrát; zápis mezipaměť zahodí, aby se změna hned projevila.
- */
-function &settingsCache(): ?array {
-    static $cache = null;
-    return $cache;
-}
-
-/** Hodnota nastavení; když není v databázi, bere se env proměnná a pak výchozí */
-function getSetting(string $key, string $default = ''): string {
-    $cache = &settingsCache();
-    if ($cache === null) {
-        $cache = [];
-        try {
-            foreach (getDB()->query('SELECT setting_key, setting_value FROM app_settings') as $r) {
-                $cache[$r['setting_key']] = (string)$r['setting_value'];
-            }
-        } catch (PDOException $e) {
-            $cache = [];
-        }
-    }
-    if (isset($cache[$key]) && $cache[$key] !== '') return $cache[$key];
-
-    $env = getenv(strtoupper($key));
-    if ($env !== false && $env !== '') return $env;
-
-    return $default !== '' ? $default : (OLLAMA_DEFAULTS[$key] ?? '');
-}
-
-/** Uloží nastavení (dvoukrokově, ať dotaz nezávisí na SQL dialektu) */
-function setSetting(string $key, string $value): bool {
-    try {
-        $db  = getDB();
-        $now = date('Y-m-d H:i:s');
-        $find = $db->prepare('SELECT setting_key FROM app_settings WHERE setting_key = ?');
-        $find->execute([$key]);
-        if ($find->fetch()) {
-            $db->prepare('UPDATE app_settings SET setting_value = ?, updated_at = ? WHERE setting_key = ?')
-               ->execute([$value, $now, $key]);
-        } else {
-            $db->prepare('INSERT INTO app_settings (setting_key, setting_value, updated_at) VALUES (?,?,?)')
-               ->execute([$key, $value, $now]);
-        }
-        $cache = &settingsCache();
-        $cache = null;   // ať se změna projeví hned ve stejném požadavku
-        return true;
-    } catch (PDOException $e) {
-        return false;
-    }
-}
+const OLLAMA_DEFAULT_URL = 'http://ollama:11434';
 
 /**
  * Adresa Ollamy. Pouštíme se jen na http(s) — jinam se server obracet nemá.
  * Vrací prázdný řetězec, když je adresa nesmyslná.
  */
 function ollamaUrl(): string {
-    $url    = rtrim(getSetting('ollama_url'), '/');
+    $url    = rtrim(getSetting('ollama_url', OLLAMA_DEFAULT_URL), '/');
     $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
     return in_array($scheme, ['http', 'https'], true) ? $url : '';
 }
@@ -143,123 +82,34 @@ function ollamaModels(): array {
  * nastavitelné: na 12 GB je 8192 rozumný začátek.
  */
 function ollamaContextSize(): int {
-    return max(2048, min(131072, (int)getSetting('ollama_num_ctx')));
+    return max(2048, min(131072, (int)getSetting('ollama_num_ctx', '8192')));
 }
 
 /**
- * Hrubý odhad počtu tokenů. Čeština má kolem tří znaků na token, což na
- * varování „tohle se nevejde" bohatě stačí — přesnost tady nepotřebujeme.
- */
-function estimateTokens(string $text): int {
-    return (int)ceil(mb_strlen($text) / 3);
-}
-
-/** Co se říká modelu při přepisu stránky */
-function ocrPrompt(): string {
-    return <<<TXT
-        Přepiš text z téhle stránky učebnice. Piš přesně to, co na stránce je,
-        včetně české diakritiky. Nic nepřidávej, nekomentuj a nepřekládej.
-
-        Když je na stránce dvousloupcový seznam slovíček, zapiš každou dvojici
-        na vlastní řádek ve tvaru: anglicky = česky
-
-        Když je na stránce běžný text, přepiš ho po odstavcích.
-        Obrázky a čísla stránek vynech.
-        TXT;
-}
-
-/**
- * Přepíše jednu stránku vision modelem.
+ * Pošle Ollamě zadání a vrátí odpověď jako text.
  *
- * @param string $imageB64 obrázek v base64 (bez „data:" prefixu)
+ * @param ?string $imageB64 obrázek v base64 (bez „data:" prefixu), když jde o čtení stránky
+ * @param bool    $wantJson vynutit JSON na výstupu
  * @return array{ok:bool, text:string, error:string}
  */
-function ollamaOcrPage(string $imageB64): array {
-    $model = getSetting('ollama_vision_model');
-    if ($model === '') return ['ok' => false, 'text' => '', 'error' => 'Není vybraný model pro čtení obrázků.'];
+function ollamaGenerate(string $model, string $prompt, ?string $imageB64 = null, bool $wantJson = false): array {
+    if ($model === '') return ['ok' => false, 'text' => '', 'error' => 'Není vybraný model pro Ollamu.'];
 
-    $r = ollamaCall('/api/generate', [
+    $payload = [
         'model'   => $model,
-        'prompt'  => ocrPrompt(),
-        'images'  => [$imageB64],
+        'prompt'  => $prompt,
         'stream'  => false,
-        // přepis, ne tvorba — chceme nudnou přesnost
+        // přepis ani skládání sady není tvorba — chceme nudnou přesnost
         'options' => ['temperature' => 0, 'num_ctx' => ollamaContextSize()],
-    ]);
+    ];
+    if ($imageB64 !== null) $payload['images'] = [$imageB64];
+    if ($wantJson)          $payload['format'] = 'json';
+
+    $r = ollamaCall('/api/generate', $payload);
     if (!$r['ok']) return ['ok' => false, 'text' => '', 'error' => $r['error']];
 
     $text = trim((string)($r['body']['response'] ?? ''));
     return $text === ''
-        ? ['ok' => false, 'text' => '', 'error' => 'Model vrátil prázdný přepis.']
+        ? ['ok' => false, 'text' => '', 'error' => 'Model vrátil prázdnou odpověď.']
         : ['ok' => true,  'text' => $text, 'error' => ''];
-}
-
-/**
- * Sestaví z přepsaného textu JSON sady.
- *
- * Schéma modelu diktujeme co nejstručněji a necháme ho vrátit rovnou JSON;
- * ověřuje se pak stejným validátorem jako ručně vložená sada, takže i když
- * model něco zkomolí, do databáze se to nedostane.
- *
- * @return array{ok:bool, json:string, error:string, warning:string}
- */
-function ollamaBuildSet(string $text, array $meta): array {
-    $model = getSetting('ollama_text_model');
-    if ($model === '') return ['ok' => false, 'json' => '', 'error' => 'Není vybraný model pro sestavení sady.', 'warning' => ''];
-
-    // Model dostane zadání i text a musí se vejít i odpověď — počítáme
-    // s tím, že sada bývá zhruba stejně dlouhá jako text, ze kterého vznikla
-    $ctx     = ollamaContextSize();
-    $needed  = estimateTokens($text) * 2 + 500;
-    $warning = $needed > $ctx
-        ? 'Text je na nastavený kontext (' . $ctx . ' tokenů) dlouhý — odhadem je potřeba kolem '
-          . $needed . '. Konec sady může chybět. Zvyš kontext v nastavení, nebo dávku rozděl na míň stránek.'
-        : '';
-
-    $kind = $meta['kind'] ?? 'dvojice';
-    $shape = match ($kind) {
-        'vyber'       => '{"otazka": "…", "odpoved": "…", "moznosti": ["…", "…", "…"]}',
-        'doplnovacka' => '{"veta": "věta s _ místo vynechaného slova", "odpoved": "…", "moznosti": ["…", "…"]}',
-        'cteni'       => '{"otazka": "…", "odpoved": "…", "moznosti": ["…", "…"]}',
-        default       => '{"a": "zadání", "b": "odpověď"}',
-    };
-
-    $prompt = "Z následujícího textu z učebnice vytvoř sadu na procvičování.\n\n"
-        . "Vrať POUZE JSON v tomhle tvaru:\n"
-        . "{\n"
-        . '  "predmet": "' . ($meta['subject'] ?? 'ostatni') . "\",\n"
-        . '  "rocnik": ' . (int)($meta['grade'] ?? 0) . ",\n"
-        . '  "nazev": ' . json_encode($meta['title'] ?? '', JSON_UNESCAPED_UNICODE) . ",\n"
-        . '  "zdroj": ' . json_encode($meta['source'] ?? '', JSON_UNESCAPED_UNICODE) . ",\n"
-        . '  "typ": "' . $kind . "\",\n"
-        . ($kind === 'cteni' ? '  "text": "text k přečtení",' . "\n" : '')
-        . '  "polozky": [' . $shape . "]\n"
-        . "}\n\n"
-        . "Pravidla:\n"
-        . "- každou položku uveď jen jednou, žádné duplicity\n"
-        . "- zachovej českou diakritiku\n"
-        . "- co v textu není, si nevymýšlej\n"
-        . ($kind === 'doplnovacka' ? "- v každé větě musí být přesně jedno podtržítko\n" : '')
-        . ($kind === 'vyber' || $kind === 'cteni' ? "- u každé otázky uveď aspoň tři možnosti včetně správné\n" : '')
-        . "\nText:\n" . $text;
-
-    $r = ollamaCall('/api/generate', [
-        'model'   => $model,
-        'prompt'  => $prompt,
-        'format'  => 'json',
-        'stream'  => false,
-        'options' => ['temperature' => 0, 'num_ctx' => $ctx],
-    ]);
-    if (!$r['ok']) return ['ok' => false, 'json' => '', 'error' => $r['error'], 'warning' => $warning];
-
-    $json = trim((string)($r['body']['response'] ?? ''));
-    if ($json === '') return ['ok' => false, 'json' => '', 'error' => 'Model vrátil prázdnou odpověď.', 'warning' => $warning];
-
-    // Některé modely JSON i přes format:json zabalí do ```json bloku
-    if (preg_match('/\{.*\}/s', $json, $m)) $json = $m[0];
-
-    $pretty = json_decode($json, true);
-    if (is_array($pretty)) $json = json_encode($pretty, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
-    return ['ok' => true, 'json' => $json, 'error' => '', 'warning' => $warning];
 }

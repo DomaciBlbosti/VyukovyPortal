@@ -1,12 +1,13 @@
 <?php
 /**
- * Naskenované stránky → sada, přes Ollamu běžící u tebe doma.
+ * Naskenované stránky → sada.
  *
  * Postup má dva kroky a mezi nimi tebe:
  *   1. vision model přepíše každou stránku zvlášť
  *   2. textový model z přepisu sestaví JSON sady
  * Mezitím si přepis přečteš a můžeš ho opravit — model, který spletl slovíčko,
- * by ho jinak protáhl až do sady.
+ * by ho jinak protáhl až do sady. U každé stránky jde otevřít detail s
+ * originální fotkou vedle přepisu, ať se dá porovnávat, ne hádat.
  *
  * Výsledný JSON nejde uložit rovnou; posílá se do stejného validátoru jako
  * ručně vložená sada, takže se do databáze nedostane nic nezkontrolovaného.
@@ -18,6 +19,16 @@ require_once __DIR__ . '/../includes/sets.php';
 
 $user = getCurrentUser();
 
+// ── Originální fotka stránky ──
+if (($_GET['image'] ?? '') !== '') {
+    $page = getOcrPage((int)$_GET['image']);
+    if (!$page || !$page['image_b64']) { http_response_code(404); exit; }
+    header('Content-Type: image/jpeg');
+    header('Cache-Control: private, max-age=3600');
+    echo base64_decode((string)$page['image_b64']);
+    exit;
+}
+
 // ── AJAX: prohlížeč nahrává stránky a pak si říká o jejich zpracování ──
 if (($_POST['ajax'] ?? '') !== '') {
     header('Content-Type: application/json');
@@ -27,7 +38,8 @@ if (($_POST['ajax'] ?? '') !== '') {
         case 'upload':
             $jobId = (int)($_POST['job_id'] ?? 0);
             if (!$jobId) {
-                $jobId = createOcrJob((string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''), (int)$user['id']);
+                $jobId = createOcrJob((string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''),
+                                      (int)$user['id'], (string)($_POST['provider'] ?? ''));
                 if (!$jobId) { echo json_encode(['ok' => false, 'error' => 'Dávku se nepodařilo založit.']); exit; }
             }
             $ok = addOcrPage($jobId, (string)($_POST['filename'] ?? ''), (string)($_POST['image'] ?? ''));
@@ -45,13 +57,16 @@ if (($_POST['ajax'] ?? '') !== '') {
             // prohlížeč z jakéhokoli důvodu neposlal
             $edited = trim((string)($_POST['text'] ?? ''));
             if ($edited !== '') saveOcrText($jobId, $edited);
-            $r = ollamaBuildSet(ocrJobText($jobId), [
+
+            $job = getOcrJob($jobId);
+            $r   = llmBuildSet(ocrJobText($jobId), [
                 'subject' => (string)($_POST['subject'] ?? 'ostatni'),
                 'grade'   => (int)($_POST['grade'] ?? 0),
                 'title'   => (string)($_POST['set_title'] ?? ''),
                 'source'  => (string)($_POST['source'] ?? ''),
                 'kind'    => (string)($_POST['kind'] ?? 'dvojice'),
-            ]);
+            ], (string)($job['provider'] ?? ''));
+
             if (!$r['ok']) { echo json_encode(['ok' => false, 'error' => $r['error'], 'warning' => $r['warning']]); exit; }
 
             // Rovnou zkontroluj stejným validátorem jako ruční vstup, ať uživatel
@@ -76,10 +91,22 @@ $message = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     switch ($_POST['action'] ?? '') {
         case 'settings':
+            setSetting('llm_provider',        (string)($_POST['provider'] ?? 'ollama'));
             setSetting('ollama_url',          trim((string)($_POST['ollama_url'] ?? '')));
             setSetting('ollama_vision_model', trim((string)($_POST['vision_model'] ?? '')));
             setSetting('ollama_text_model',   trim((string)($_POST['text_model'] ?? '')));
             setSetting('ollama_num_ctx',      (string)max(2048, (int)($_POST['num_ctx'] ?? 8192)));
+            setSetting('openai_url',          trim((string)($_POST['openai_url'] ?? '')));
+            setSetting('openai_vision_model', trim((string)($_POST['openai_vision_model'] ?? '')));
+            setSetting('openai_text_model',   trim((string)($_POST['openai_text_model'] ?? '')));
+
+            // Klíč přepisujeme jen když uživatel opravdu něco vyplnil — do
+            // formuláře se nikdy nevypisuje, takže prázdné pole znamená
+            // „nech ho být", ne „smaž ho". Na smazání je zvlášť zaškrtávátko.
+            $key = trim((string)($_POST['openai_key'] ?? ''));
+            if (!empty($_POST['clear_key']))  setSetting('openai_key', '');
+            elseif ($key !== '')              setSetting('openai_key', $key);
+
             $message = 'Nastavení uloženo.';
             break;
 
@@ -93,8 +120,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? 'Stránka půjde přepsat znovu.' : 'Stránku se nepodařilo vrátit.';
             break;
 
+        case 'save_page_text':
+            $message = saveOcrPageText((int)($_POST['page_id'] ?? 0), (string)($_POST['text'] ?? ''))
+                ? 'Oprava uložena.' : 'Opravu se nepodařilo uložit.';
+            break;
+
         case 'save_text':
-            saveOcrText((int)($_POST['job_id'] ?? 0), (string)($_POST['text'] ?? ''));
+            $edited = trim((string)($_POST['text'] ?? ''));
+            if ($edited !== '') saveOcrText((int)($_POST['job_id'] ?? 0), $edited);
             $message = 'Text uložen.';
             break;
     }
@@ -102,83 +135,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 pruneOcrJobs();
 
-$jobId = (int)($_GET['job'] ?? $_POST['job_id'] ?? 0);
+// ── Detail jedné stránky: originál vedle přepisu ──
+$detailId = (int)($_GET['page'] ?? $_POST['page_id'] ?? 0);
+$detail   = $detailId ? getOcrPage($detailId) : null;
+
+$jobId = (int)($_GET['job'] ?? $_POST['job_id'] ?? ($detail['job_id'] ?? 0));
 $job   = $jobId ? getOcrJob($jobId) : null;
 $pages = $job ? ocrPages($jobId) : [];
 $jobs  = listOcrJobs();
 
-// Modely se ptáme jen když je nastavená adresa — jinak by se stránka
+$provider = llmProvider();
+
+// Modely se ptáme jen když je poskytovatel nastavený — jinak by se stránka
 // zbytečně zdržovala čekáním na spojení, které nemůže vyjít
-$probe = ollamaUrl() !== '' ? ollamaModels() : ['ok' => false, 'models' => [], 'error' => 'Adresa Ollamy není nastavená.'];
+$canProbeOllama = ollamaUrl() !== '';
+$probeOllama = $canProbeOllama ? ollamaModels()
+    : ['ok' => false, 'models' => [], 'error' => 'Adresa Ollamy není nastavená.'];
+$probeOpenai = openaiConfigured() ? openaiModels()
+    : ['ok' => false, 'models' => [], 'error' => 'Adresa nebo klíč nejsou vyplněné.'];
+
+$activeProbe = $provider === 'openai' ? $probeOpenai : $probeOllama;
 
 $pageTitle = 'Skenování učebnic';
 include __DIR__ . '/../includes/header.php';
+
+/** Rozbalovací seznam modelů, nebo textové pole, když se seznam nepodařilo načíst */
+function modelPicker(string $name, string $current, array $models, string $placeholder): void { ?>
+    <?php if ($models): ?>
+    <select id="<?= $name ?>" name="<?= $name ?>" class="form-input">
+        <option value="">— vyber —</option>
+        <?php foreach ($models as $m): ?>
+        <option value="<?= htmlspecialchars($m) ?>" <?= $m === $current ? 'selected' : '' ?>><?= htmlspecialchars($m) ?></option>
+        <?php endforeach; ?>
+    </select>
+    <?php else: ?>
+    <input type="text" id="<?= $name ?>" name="<?= $name ?>" class="form-input"
+           value="<?= htmlspecialchars($current) ?>" placeholder="<?= htmlspecialchars($placeholder) ?>">
+    <?php endif; ?>
+<?php }
 ?>
 
 <div class="page-header">
     <h1>🔍 Skenování <span class="accent">učebnic</span></h1>
-    <p class="page-subtitle">Nahraj vyfocené stránky, Ollama je přepíše a složí z nich sadu</p>
+    <p class="page-subtitle">Nahraj vyfocené stránky, model je přepíše a složí z nich sadu</p>
 </div>
 
 <?php if ($message): ?><div class="alert alert-success"><?= htmlspecialchars($message) ?></div><?php endif; ?>
 <?php if ($error): ?><div class="alert alert-error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
+<?php if ($detail): /* ── Detail stránky ── */ ?>
 <section class="admin-card">
-    <h2 class="section-title">Připojení na Ollamu</h2>
-    <?php if ($probe['ok']): ?>
-        <div class="alert alert-success">✔ Ollama odpovídá, stažených modelů: <?= count($probe['models']) ?>.</div>
+    <div class="challenge-head">
+        <h2 class="section-title" style="margin:0">
+            Stránka <?= (int)$detail['position'] + 1 ?> — <?= htmlspecialchars($detail['filename']) ?>
+        </h2>
+        <a href="?job=<?= (int)$detail['job_id'] ?>" class="btn-secondary btn-sm">← zpět na dávku</a>
+    </div>
+    <p class="mistake-hint">
+        Porovnej přepis s originálem a co model spletl, oprav. Oprava se propíše
+        do textu celé dávky, ze kterého se pak skládá sada.
+    </p>
+
+    <div class="ocr-compare">
+        <div class="ocr-original">
+            <a href="?image=<?= (int)$detail['id'] ?>" target="_blank" rel="noopener">
+                <img src="?image=<?= (int)$detail['id'] ?>" alt="Originální fotka stránky">
+            </a>
+            <p class="mistake-hint">Klepnutím se fotka otevře ve velkém.</p>
+        </div>
+        <div class="ocr-transcript">
+            <form method="post">
+                <input type="hidden" name="action" value="save_page_text">
+                <input type="hidden" name="page_id" value="<?= (int)$detail['id'] ?>">
+                <textarea name="text" rows="18" class="form-input"
+                          style="font-family:monospace;font-size:.85rem"><?= htmlspecialchars(pageText($detail)) ?></textarea>
+                <div style="display:flex;gap:.5rem;align-items:center;margin-top:.75rem;flex-wrap:wrap">
+                    <button type="submit" class="btn-primary">Uložit opravu</button>
+                    <?php if (trim((string)$detail['edited_text']) !== ''): ?>
+                    <span class="mistake-hint">✎ ručně upraveno</span>
+                    <?php endif; ?>
+                </div>
+            </form>
+            <?php if ($detail['error']): ?>
+            <div class="alert alert-error" style="margin-top:.75rem"><?= htmlspecialchars($detail['error']) ?></div>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
+
+<?php if (!$job && !$detail): ?>
+<section class="admin-card">
+    <h2 class="section-title">Kdo bude číst</h2>
+    <?php if ($activeProbe['ok']): ?>
+        <div class="alert alert-success">✔ <?= htmlspecialchars(LLM_PROVIDERS[$provider]) ?> odpovídá,
+            dostupných modelů: <?= count($activeProbe['models']) ?>.</div>
     <?php else: ?>
-        <div class="alert alert-error">✘ <?= htmlspecialchars($probe['error']) ?></div>
+        <div class="alert alert-error">✘ <?= htmlspecialchars(LLM_PROVIDERS[$provider]) ?>: <?= htmlspecialchars($activeProbe['error']) ?></div>
     <?php endif; ?>
 
     <form method="post">
         <input type="hidden" name="action" value="settings">
+
         <div class="form-group">
-            <label for="ollama_url">Adresa Ollamy</label>
-            <input type="text" id="ollama_url" name="ollama_url" class="form-input"
-                   value="<?= htmlspecialchars(getSetting('ollama_url')) ?>" placeholder="http://ollama:11434">
-            <p class="mistake-hint">Běží-li Ollama vedle jako aplikace na TrueNASu, bývá to <code>http://ollama:11434</code>;
-               na jiném stroji v síti třeba <code>http://192.168.1.10:11434</code>.</p>
+            <label>Výchozí poskytovatel</label>
+            <?php foreach (LLM_PROVIDERS as $key => $label): ?>
+            <label style="display:flex;align-items:center;gap:.5rem;margin:.35rem 0;font-weight:normal">
+                <input type="radio" name="provider" value="<?= $key ?>" <?= $provider === $key ? 'checked' : '' ?>>
+                <?= htmlspecialchars($label) ?>
+            </label>
+            <?php endforeach; ?>
+            <p class="mistake-hint">U jednotlivé dávky se dá zvolit jinak.</p>
         </div>
 
+        <h3 class="section-title" style="font-size:1rem;margin-top:1.5rem">Ollama</h3>
+        <div class="form-group">
+            <label for="ollama_url">Adresa</label>
+            <input type="text" id="ollama_url" name="ollama_url" class="form-input"
+                   value="<?= htmlspecialchars(getSetting('ollama_url', OLLAMA_DEFAULT_URL)) ?>" placeholder="http://ollama:11434">
+            <p class="mistake-hint">
+                <?= $probeOllama['ok'] ? '✔ odpovídá, modelů: ' . count($probeOllama['models'])
+                                       : '✘ ' . htmlspecialchars($probeOllama['error']) ?>
+            </p>
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label for="vision_model">Model na čtení obrázků</label>
-                <?php $vm = getSetting('ollama_vision_model'); ?>
-                <?php if ($probe['models']): ?>
-                <select id="vision_model" name="vision_model" class="form-input">
-                    <option value="">— vyber —</option>
-                    <?php foreach ($probe['models'] as $m): ?>
-                    <option value="<?= htmlspecialchars($m) ?>" <?= $m === $vm ? 'selected' : '' ?>><?= htmlspecialchars($m) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <?php else: ?>
-                <input type="text" id="vision_model" name="vision_model" class="form-input"
-                       value="<?= htmlspecialchars($vm) ?>" placeholder="např. llama3.2-vision">
-                <?php endif; ?>
-                <p class="mistake-hint">Musí umět obrázky — třeba <code>llama3.2-vision</code>, <code>minicpm-v</code>, <code>qwen2.5vl</code>.</p>
+                <?php modelPicker('vision_model', getSetting('ollama_vision_model'), $probeOllama['models'], 'např. gemma3:12b'); ?>
             </div>
-
             <div class="form-group">
                 <label for="text_model">Model na sestavení sady</label>
-                <?php $tm = getSetting('ollama_text_model'); ?>
-                <?php if ($probe['models']): ?>
-                <select id="text_model" name="text_model" class="form-input">
-                    <option value="">— vyber —</option>
-                    <?php foreach ($probe['models'] as $m): ?>
-                    <option value="<?= htmlspecialchars($m) ?>" <?= $m === $tm ? 'selected' : '' ?>><?= htmlspecialchars($m) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <?php else: ?>
-                <input type="text" id="text_model" name="text_model" class="form-input"
-                       value="<?= htmlspecialchars($tm) ?>" placeholder="např. qwen2.5">
-                <?php endif; ?>
-                <p class="mistake-hint">Stačí běžný textový model. Skládání JSON zvládne líp než přepis obrázku.
-                   Máš-li málo paměti na kartě, dej sem i do čtení obrázků <strong>tentýž model</strong> —
-                   nebude se pak mezi kroky přenačítat.</p>
+                <?php modelPicker('text_model', getSetting('ollama_text_model'), $probeOllama['models'], 'např. gemma3:12b'); ?>
+                <p class="mistake-hint">Máš-li málo paměti na kartě, dej sem i do čtení obrázků
+                   <strong>tentýž model</strong> — nebude se pak mezi kroky přenačítat.</p>
             </div>
         </div>
-
         <div class="form-group">
             <label for="num_ctx">Velikost kontextu (tokenů)</label>
             <input type="number" id="num_ctx" name="num_ctx" class="form-input" min="2048" step="1024"
@@ -190,11 +281,50 @@ include __DIR__ . '/../includes/header.php';
             </p>
         </div>
 
-        <button type="submit" class="btn-primary">Uložit nastavení</button>
+        <h3 class="section-title" style="font-size:1rem;margin-top:1.5rem">Komerční API</h3>
+        <p class="mistake-hint" style="margin-bottom:.75rem">
+            Rozhraní OpenAI umí i OpenRouter, Groq a další — stačí přepsat adresu.
+            <strong>Fotky učebnice tímhle odejdou z domácí sítě.</strong>
+        </p>
+        <div class="form-group">
+            <label for="openai_url">Adresa</label>
+            <input type="text" id="openai_url" name="openai_url" class="form-input"
+                   value="<?= htmlspecialchars(getSetting('openai_url', OPENAI_DEFAULT_URL)) ?>">
+        </div>
+        <div class="form-group">
+            <label for="openai_key">API klíč</label>
+            <input type="password" id="openai_key" name="openai_key" class="form-input" autocomplete="off"
+                   placeholder="<?= getSetting('openai_key') !== ''
+                        ? 'uloženo (' . htmlspecialchars(maskedSecret(getSetting('openai_key'))) . ') — nech prázdné, když ho neměníš'
+                        : 'sk-…' ?>">
+            <?php if (getSetting('openai_key') !== ''): ?>
+            <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-weight:normal">
+                <input type="checkbox" name="clear_key" value="1"> smazat uložený klíč
+            </label>
+            <?php endif; ?>
+            <p class="mistake-hint">Klíč se do stránky nikdy nevypisuje celý.</p>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="openai_vision_model">Model na čtení obrázků</label>
+                <?php modelPicker('openai_vision_model', getSetting('openai_vision_model', 'gpt-4o-mini'),
+                                  $probeOpenai['models'], 'gpt-4o-mini'); ?>
+            </div>
+            <div class="form-group">
+                <label for="openai_text_model">Model na sestavení sady</label>
+                <?php modelPicker('openai_text_model', getSetting('openai_text_model', 'gpt-4o-mini'),
+                                  $probeOpenai['models'], 'gpt-4o-mini'); ?>
+            </div>
+        </div>
+        <p class="mistake-hint">
+            <?= $probeOpenai['ok'] ? '✔ odpovídá, modelů: ' . count($probeOpenai['models'])
+                                   : '✘ ' . htmlspecialchars($probeOpenai['error']) ?>
+        </p>
+
+        <button type="submit" class="btn-primary" style="margin-top:1rem">Uložit nastavení</button>
     </form>
 </section>
 
-<?php if (!$job): ?>
 <section class="admin-card">
     <h2 class="section-title">Nová dávka</h2>
     <p class="mistake-hint" style="margin-bottom:1rem">
@@ -210,17 +340,20 @@ include __DIR__ . '/../includes/header.php';
             <label for="job_note">Poznámka</label>
             <input type="text" id="job_note" class="form-input" placeholder="slovíčka ze strany 34–35">
         </div>
+        <div class="form-group">
+            <label for="job_provider">Číst přes</label>
+            <select id="job_provider" class="form-input">
+                <?php foreach (LLM_PROVIDERS as $key => $label): ?>
+                <option value="<?= $key ?>" <?= $provider === $key ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
     </div>
     <div class="form-group">
         <label for="pages">Stránky</label>
         <input type="file" id="pages" class="form-input" accept="image/*" multiple>
     </div>
-    <button type="button" id="uploadBtn" class="btn-primary" <?= $probe['ok'] ? '' : 'disabled' ?>>
-        Nahrát a přepsat →
-    </button>
-    <?php if (!$probe['ok']): ?>
-    <p class="mistake-hint">Nejdřív nastav funkční adresu Ollamy.</p>
-    <?php endif; ?>
+    <button type="button" id="uploadBtn" class="btn-primary">Nahrát a přepsat →</button>
     <div id="uploadProgress" class="mistake-hint" style="margin-top:1rem"></div>
 </section>
 <?php endif; ?>
@@ -231,7 +364,10 @@ include __DIR__ . '/../includes/header.php';
         <h2 class="section-title" style="margin:0"><?= htmlspecialchars($job['title'] ?: 'Dávka #' . $jobId) ?></h2>
         <a href="<?= BASE_URL ?>/admin/ocr.php" class="btn-secondary btn-sm">＋ nová dávka</a>
     </div>
-    <?php if ($job['note']): ?><p class="mistake-hint"><?= htmlspecialchars($job['note']) ?></p><?php endif; ?>
+    <p class="mistake-hint">
+        <?php if ($job['note']): ?><?= htmlspecialchars($job['note']) ?> · <?php endif; ?>
+        čte přes <?= htmlspecialchars(LLM_PROVIDERS[llmProvider((string)$job['provider'])]) ?>
+    </p>
 
     <table class="data-table" style="margin-top:1rem">
         <thead><tr><th>#</th><th>Soubor</th><th>Stav</th><th>Čas</th><th></th></tr></thead>
@@ -247,13 +383,15 @@ include __DIR__ . '/../includes/header.php';
                         'bezi'   => '⏳ běží',
                         default  => '· čeká',
                     } ?>
+                    <?php if (trim((string)$p['edited_text']) !== ''): ?><span class="mistake-hint">✎</span><?php endif; ?>
                 </td>
                 <td><?= match (true) {
-                        (int)$p['seconds'] > 0     => (int)$p['seconds'] . ' s',
-                        $p['status'] === 'hotovo'  => '<1 s',
-                        default                    => '–',
+                        (int)$p['seconds'] > 0    => (int)$p['seconds'] . ' s',
+                        $p['status'] === 'hotovo' => '&lt;1 s',
+                        default                   => '–',
                     } ?></td>
-                <td>
+                <td style="display:flex;gap:.4rem">
+                    <a href="?page=<?= (int)$p['id'] ?>" class="btn-secondary btn-sm">Porovnat</a>
                     <?php if ($p['status'] === 'chyba'): ?>
                     <form method="post">
                         <input type="hidden" name="action" value="retry_page">
@@ -268,9 +406,7 @@ include __DIR__ . '/../includes/header.php';
         </tbody>
     </table>
 
-    <?php
-    $waiting = count(array_filter($pages, fn($p) => in_array($p['status'], ['ceka', 'bezi'], true)));
-    ?>
+    <?php $waiting = count(array_filter($pages, fn($p) => in_array($p['status'], ['ceka', 'bezi'], true))); ?>
     <div style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
         <button type="button" id="processBtn" class="btn-primary" <?= $waiting ? '' : 'disabled' ?>>
             <?= $waiting ? 'Přepsat zbývající (' . $waiting . ')' : 'Vše přepsáno' ?>
@@ -282,7 +418,8 @@ include __DIR__ . '/../includes/header.php';
 <section class="admin-card">
     <h2 class="section-title">Přepsaný text — přečti a oprav</h2>
     <p class="mistake-hint" style="margin-bottom:1rem">
-        Tohle model vyčetl ze stránek. Co je tady špatně, bude špatně i v sadě — vyplatí se to projet očima.
+        Slepený text ze všech stránek. Co je tady špatně, bude špatně i v sadě.
+        Jednotlivou stránku jde porovnat s originálem přes <strong>Porovnat</strong> v tabulce výš.
     </p>
     <form method="post">
         <input type="hidden" name="action" value="save_text">
@@ -292,13 +429,14 @@ include __DIR__ . '/../includes/header.php';
         <?php
         $estTokens = estimateTokens(ocrJobText($jobId));
         $ctxSize   = ollamaContextSize();
-        $tooLong   = $estTokens * 2 + 500 > $ctxSize;
+        $tooLong   = llmProvider((string)$job['provider']) === 'ollama' && $estTokens * 2 + 500 > $ctxSize;
         ?>
         <p class="mistake-hint" style="margin-top:.5rem">
-            Odhadem <strong><?= $estTokens ?></strong> tokenů, nastavený kontext je <?= $ctxSize ?>.
+            Odhadem <strong><?= $estTokens ?></strong> tokenů<?php if (llmProvider((string)$job['provider']) === 'ollama'): ?>,
+            nastavený kontext je <?= $ctxSize ?><?php endif; ?>.
             <?php if ($tooLong): ?>
             <span style="color:var(--danger)">Na sestavení sady to nemusí stačit — zvyš kontext,
-            nebo dávku rozděl na míň stránek.</span>
+            dávku rozděl na míň stránek, nebo ji nech sestavit přes komerční API.</span>
             <?php endif; ?>
         </p>
         <button type="submit" class="btn-secondary" style="margin-top:.75rem">Uložit text</button>
@@ -368,13 +506,14 @@ include __DIR__ . '/../includes/header.php';
     <p class="mistake-hint">Zatím žádná dávka. Staré se po <?= OCR_KEEP_DAYS ?> dnech uklidí samy.</p>
     <?php else: ?>
     <table class="data-table">
-        <thead><tr><th>Název</th><th>Stránek</th><th>Přepsáno</th><th>Založeno</th><th></th></tr></thead>
+        <thead><tr><th>Název</th><th>Stránek</th><th>Přepsáno</th><th>Čte přes</th><th>Založeno</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($jobs as $j): ?>
             <tr>
                 <td><a href="?job=<?= (int)$j['id'] ?>"><?= htmlspecialchars($j['title'] ?: 'Dávka #' . (int)$j['id']) ?></a></td>
                 <td><?= (int)$j['page_count'] ?></td>
                 <td><?= (int)$j['done_count'] ?>/<?= (int)$j['page_count'] ?></td>
+                <td style="font-size:.8rem"><?= $j['provider'] === 'openai' ? '☁️ API' : '🏠 Ollama' ?></td>
                 <td style="color:var(--muted);font-size:.8rem"><?= htmlspecialchars((string)$j['created_at']) ?></td>
                 <td>
                     <form method="post" onsubmit="return confirm('Smazat dávku i s fotkami?')">
