@@ -15,6 +15,7 @@ const OLLAMA_DEFAULTS = [
     'ollama_url'          => 'http://ollama:11434',
     'ollama_vision_model' => '',
     'ollama_text_model'   => '',
+    'ollama_num_ctx'      => '8192',
 ];
 
 /**
@@ -131,6 +132,28 @@ function ollamaModels(): array {
     return ['ok' => true, 'models' => $models, 'error' => $models ? '' : 'Ollama běží, ale nemá stažený žádný model.'];
 }
 
+/**
+ * Velikost kontextu, se kterou se model pouští.
+ *
+ * Ollama má ve výchozím stavu jen pár tisíc tokenů a co se nevejde, tiše
+ * zahodí — u sestavení sady z několika stránek by pak potichu chyběla
+ * poslední slovíčka. Radši si ji řekneme sami.
+ *
+ * Větší kontext znamená víc obsazené paměti grafické karty, takže je to
+ * nastavitelné: na 12 GB je 8192 rozumný začátek.
+ */
+function ollamaContextSize(): int {
+    return max(2048, min(131072, (int)getSetting('ollama_num_ctx')));
+}
+
+/**
+ * Hrubý odhad počtu tokenů. Čeština má kolem tří znaků na token, což na
+ * varování „tohle se nevejde" bohatě stačí — přesnost tady nepotřebujeme.
+ */
+function estimateTokens(string $text): int {
+    return (int)ceil(mb_strlen($text) / 3);
+}
+
 /** Co se říká modelu při přepisu stránky */
 function ocrPrompt(): string {
     return <<<TXT
@@ -160,7 +183,8 @@ function ollamaOcrPage(string $imageB64): array {
         'prompt'  => ocrPrompt(),
         'images'  => [$imageB64],
         'stream'  => false,
-        'options' => ['temperature' => 0],   // přepis, ne tvorba — chceme nudnou přesnost
+        // přepis, ne tvorba — chceme nudnou přesnost
+        'options' => ['temperature' => 0, 'num_ctx' => ollamaContextSize()],
     ]);
     if (!$r['ok']) return ['ok' => false, 'text' => '', 'error' => $r['error']];
 
@@ -177,11 +201,20 @@ function ollamaOcrPage(string $imageB64): array {
  * ověřuje se pak stejným validátorem jako ručně vložená sada, takže i když
  * model něco zkomolí, do databáze se to nedostane.
  *
- * @return array{ok:bool, json:string, error:string}
+ * @return array{ok:bool, json:string, error:string, warning:string}
  */
 function ollamaBuildSet(string $text, array $meta): array {
     $model = getSetting('ollama_text_model');
-    if ($model === '') return ['ok' => false, 'json' => '', 'error' => 'Není vybraný model pro sestavení sady.'];
+    if ($model === '') return ['ok' => false, 'json' => '', 'error' => 'Není vybraný model pro sestavení sady.', 'warning' => ''];
+
+    // Model dostane zadání i text a musí se vejít i odpověď — počítáme
+    // s tím, že sada bývá zhruba stejně dlouhá jako text, ze kterého vznikla
+    $ctx     = ollamaContextSize();
+    $needed  = estimateTokens($text) * 2 + 500;
+    $warning = $needed > $ctx
+        ? 'Text je na nastavený kontext (' . $ctx . ' tokenů) dlouhý — odhadem je potřeba kolem '
+          . $needed . '. Konec sady může chybět. Zvyš kontext v nastavení, nebo dávku rozděl na míň stránek.'
+        : '';
 
     $kind = $meta['kind'] ?? 'dvojice';
     $shape = match ($kind) {
@@ -215,12 +248,12 @@ function ollamaBuildSet(string $text, array $meta): array {
         'prompt'  => $prompt,
         'format'  => 'json',
         'stream'  => false,
-        'options' => ['temperature' => 0],
+        'options' => ['temperature' => 0, 'num_ctx' => $ctx],
     ]);
-    if (!$r['ok']) return ['ok' => false, 'json' => '', 'error' => $r['error']];
+    if (!$r['ok']) return ['ok' => false, 'json' => '', 'error' => $r['error'], 'warning' => $warning];
 
     $json = trim((string)($r['body']['response'] ?? ''));
-    if ($json === '') return ['ok' => false, 'json' => '', 'error' => 'Model vrátil prázdnou odpověď.'];
+    if ($json === '') return ['ok' => false, 'json' => '', 'error' => 'Model vrátil prázdnou odpověď.', 'warning' => $warning];
 
     // Některé modely JSON i přes format:json zabalí do ```json bloku
     if (preg_match('/\{.*\}/s', $json, $m)) $json = $m[0];
@@ -228,5 +261,5 @@ function ollamaBuildSet(string $text, array $meta): array {
     $pretty = json_decode($json, true);
     if (is_array($pretty)) $json = json_encode($pretty, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-    return ['ok' => true, 'json' => $json, 'error' => ''];
+    return ['ok' => true, 'json' => $json, 'error' => '', 'warning' => $warning];
 }

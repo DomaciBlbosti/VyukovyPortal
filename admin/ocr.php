@@ -41,7 +41,10 @@ if (($_POST['ajax'] ?? '') !== '') {
 
         case 'build':
             $jobId = (int)($_POST['job_id'] ?? 0);
-            saveOcrText($jobId, (string)($_POST['text'] ?? ''));
+            // Prázdný text neukládáme — přepsal by ruční opravy, kdyby ho
+            // prohlížeč z jakéhokoli důvodu neposlal
+            $edited = trim((string)($_POST['text'] ?? ''));
+            if ($edited !== '') saveOcrText($jobId, $edited);
             $r = ollamaBuildSet(ocrJobText($jobId), [
                 'subject' => (string)($_POST['subject'] ?? 'ostatni'),
                 'grade'   => (int)($_POST['grade'] ?? 0),
@@ -49,16 +52,17 @@ if (($_POST['ajax'] ?? '') !== '') {
                 'source'  => (string)($_POST['source'] ?? ''),
                 'kind'    => (string)($_POST['kind'] ?? 'dvojice'),
             ]);
-            if (!$r['ok']) { echo json_encode(['ok' => false, 'error' => $r['error']]); exit; }
+            if (!$r['ok']) { echo json_encode(['ok' => false, 'error' => $r['error'], 'warning' => $r['warning']]); exit; }
 
             // Rovnou zkontroluj stejným validátorem jako ruční vstup, ať uživatel
             // nemusí přecházet jinam, aby zjistil, že model něco zkomolil
             $checked = parseSetPayload($r['json']);
             echo json_encode([
-                'ok'     => true,
-                'json'   => $r['json'],
-                'errors' => $checked['errors'],
-                'count'  => count($checked['items']),
+                'ok'      => true,
+                'json'    => $r['json'],
+                'errors'  => $checked['errors'],
+                'count'   => count($checked['items']),
+                'warning' => $r['warning'],
             ]);
             exit;
     }
@@ -75,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setSetting('ollama_url',          trim((string)($_POST['ollama_url'] ?? '')));
             setSetting('ollama_vision_model', trim((string)($_POST['vision_model'] ?? '')));
             setSetting('ollama_text_model',   trim((string)($_POST['text_model'] ?? '')));
+            setSetting('ollama_num_ctx',      (string)max(2048, (int)($_POST['num_ctx'] ?? 8192)));
             $message = 'Nastavení uloženo.';
             break;
 
@@ -168,9 +173,23 @@ include __DIR__ . '/../includes/header.php';
                 <input type="text" id="text_model" name="text_model" class="form-input"
                        value="<?= htmlspecialchars($tm) ?>" placeholder="např. qwen2.5">
                 <?php endif; ?>
-                <p class="mistake-hint">Stačí běžný textový model. Skládání JSON zvládne líp než přepis obrázku.</p>
+                <p class="mistake-hint">Stačí běžný textový model. Skládání JSON zvládne líp než přepis obrázku.
+                   Máš-li málo paměti na kartě, dej sem i do čtení obrázků <strong>tentýž model</strong> —
+                   nebude se pak mezi kroky přenačítat.</p>
             </div>
         </div>
+
+        <div class="form-group">
+            <label for="num_ctx">Velikost kontextu (tokenů)</label>
+            <input type="number" id="num_ctx" name="num_ctx" class="form-input" min="2048" step="1024"
+                   value="<?= (int)ollamaContextSize() ?>" style="max-width:12rem">
+            <p class="mistake-hint">
+                Kolik textu model uvidí najednou. Ollama má ve výchozím stavu jen pár tisíc tokenů a co se
+                nevejde, tiše zahodí — u sady z několika stránek by pak chyběla poslední slovíčka.
+                Větší kontext ale zabere víc paměti na kartě; na 12 GB je 8192 rozumný začátek.
+            </p>
+        </div>
+
         <button type="submit" class="btn-primary">Uložit nastavení</button>
     </form>
 </section>
@@ -270,6 +289,18 @@ include __DIR__ . '/../includes/header.php';
         <input type="hidden" name="job_id" value="<?= $jobId ?>">
         <textarea id="ocrText" name="text" rows="14" class="form-input"
                   style="font-family:monospace;font-size:.85rem"><?= htmlspecialchars(ocrJobText($jobId)) ?></textarea>
+        <?php
+        $estTokens = estimateTokens(ocrJobText($jobId));
+        $ctxSize   = ollamaContextSize();
+        $tooLong   = $estTokens * 2 + 500 > $ctxSize;
+        ?>
+        <p class="mistake-hint" style="margin-top:.5rem">
+            Odhadem <strong><?= $estTokens ?></strong> tokenů, nastavený kontext je <?= $ctxSize ?>.
+            <?php if ($tooLong): ?>
+            <span style="color:var(--danger)">Na sestavení sady to nemusí stačit — zvyš kontext,
+            nebo dávku rozděl na míň stránek.</span>
+            <?php endif; ?>
+        </p>
         <button type="submit" class="btn-secondary" style="margin-top:.75rem">Uložit text</button>
     </form>
 </section>
@@ -316,6 +347,8 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <button type="button" id="buildBtn" class="btn-primary">Sestavit JSON →</button>
     <span id="buildProgress" class="mistake-hint" style="margin-left:.75rem"></span>
+
+    <div id="buildWarning" class="alert alert-error" style="margin-top:1rem;display:none"></div>
 
     <div id="buildResult" style="margin-top:1.25rem;display:none">
         <div id="buildErrors"></div>

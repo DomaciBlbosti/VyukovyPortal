@@ -42,6 +42,12 @@ ollama pull llama3.2-vision     # čtení obrázků, ~8 GB
 ollama pull qwen2.5             # sestavení sady, ~5 GB
 ```
 
+**Když máš málo paměti na kartě, dej do obou polí tentýž model.** Dva různé se
+na 12 GB nevejdou současně a Ollama by je mezi krokem „přepis" a „sestavení"
+pořád přenačítala. Gemma 3 od velikosti 4B nahoru umí obrázky i text, takže
+pokryje obojí sama. K tomu se hodí `OLLAMA_KEEP_ALIVE=30m`, jinak Ollama model
+po pěti minutách nečinnosti uvolní.
+
 Na čtení obrázků jde použít i `minicpm-v` nebo `qwen2.5vl`. **Počítej s tím,
 že tohle je slabé místo celého řetězu** — malé vision modely dělají v české
 diakritice chyby a rozvržení stránky (sloupce, tabulky, číslování cvičení)
@@ -55,6 +61,20 @@ jsou to jednotky sekund.
 **Admin → 🔍 Skenování učebnic** — nahoře vyplň adresu Ollamy a vyber oba
 modely. Jakmile adresa sedí, aplikace si sama načte seznam stažených modelů
 a nabídne ho v rozbalovacím seznamu.
+
+### Velikost kontextu
+
+Ollama má ve výchozím stavu jen pár tisíc tokenů kontextu a **co se nevejde,
+tiše zahodí** — u sady sestavené z několika stránek by pak potichu chyběla
+poslední slovíčka. Aplikace si proto kontext říká sama; nastavuje se ve stejném
+formuláři jako modely a výchozí hodnota je 8192.
+
+Větší kontext zabere víc paměti na kartě. Na 12 GB je 8192 rozumný začátek;
+když máš dávky delší, zvyš ho a sleduj, jestli se model ještě vejde do VRAM.
+
+Pod přepsaným textem je vždycky vidět odhad, kolik tokenů zabírá a kolik je
+nastaveno — a když se to nemá šanci vejít, aplikace to řekne dřív, než dáš
+*Sestavit JSON*.
 
 ## Nahrání stránek
 
