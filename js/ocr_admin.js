@@ -52,6 +52,7 @@
                         job_id: jobId,
                         title: document.getElementById('job_title').value,
                         note:  document.getElementById('job_note').value,
+                        provider: document.getElementById('job_provider').value,
                         filename: files[i].name,
                         image,
                     });
@@ -129,6 +130,12 @@
                     kind: document.getElementById('kind').value,
                     grade: document.getElementById('grade').value,
                 });
+                // Varování o krátkém kontextu platí i když volání selže —
+                // často je právě ono tím důvodem
+                const warnBox = document.getElementById('buildWarning');
+                warnBox.style.display = res.warning ? 'block' : 'none';
+                warnBox.textContent   = res.warning || '';
+
                 if (!res.ok) throw new Error(res.error || 'Sestavení selhalo.');
 
                 document.getElementById('buildResult').style.display = 'block';

@@ -7,18 +7,19 @@
  * neúspěšnou stránku přepsat znovu, aniž bys ji fotil podruhé.
  */
 require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/ollama.php';
+require_once __DIR__ . '/llm.php';
 
 /** Jak dlouho dávky držíme, než se uklidí samy (fotky zabírají místo) */
 const OCR_KEEP_DAYS = 14;
 
 /** Založí dávku a vrátí její ID; 0 při selhání */
-function createOcrJob(string $title, string $note, int $userId): int {
+function createOcrJob(string $title, string $note, int $userId, string $provider = ''): int {
     try {
         $now = date('Y-m-d H:i:s');
         $db  = getDB();
-        $db->prepare('INSERT INTO ocr_jobs (title, note, created_by, created_at, updated_at) VALUES (?,?,?,?,?)')
-           ->execute([mb_substr($title, 0, 120), mb_substr($note, 0, 255), $userId ?: null, $now, $now]);
+        $db->prepare('INSERT INTO ocr_jobs (title, note, provider, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?)')
+           ->execute([mb_substr($title, 0, 120), mb_substr($note, 0, 255),
+                      isset(LLM_PROVIDERS[$provider]) ? $provider : '', $userId ?: null, $now, $now]);
         return (int)$db->lastInsertId();
     } catch (PDOException $e) {
         return 0;
@@ -60,7 +61,7 @@ function getOcrJob(int $id): ?array {
  */
 function ocrPages(int $jobId): array {
     try {
-        $stmt = getDB()->prepare('SELECT id, job_id, position, filename, status, text, error, seconds
+        $stmt = getDB()->prepare('SELECT id, job_id, position, filename, status, text, edited_text, error, seconds
                                   FROM ocr_pages WHERE job_id = ? ORDER BY position ASC, id ASC');
         $stmt->execute([$jobId]);
         return $stmt->fetchAll();
@@ -132,8 +133,9 @@ function processNextOcrPage(int $jobId): array {
 
     $db->prepare('UPDATE ocr_pages SET status = ? WHERE id = ?')->execute(['bezi', $page['id']]);
 
+    $job     = getOcrJob($jobId);
     $started = microtime(true);
-    $res     = ollamaOcrPage((string)$page['image_b64']);
+    $res     = llmOcrPage((string)$page['image_b64'], (string)($job['provider'] ?? ''));
     $secs    = (int)round(microtime(true) - $started);
 
     if ($res['ok']) {
@@ -182,9 +184,50 @@ function ocrJobText(int $jobId): string {
 
     $parts = [];
     foreach (ocrPages($jobId) as $p) {
-        if ($p['status'] === 'hotovo' && trim((string)$p['text']) !== '') $parts[] = trim((string)$p['text']);
+        $t = pageText($p);
+        if ($p['status'] === 'hotovo' && $t !== '') $parts[] = $t;
     }
     return implode("\n\n", $parts);
+}
+
+/** Platný text stránky — ruční oprava má přednost před tím, co vrátil model */
+function pageText(array $page): string {
+    $edited = trim((string)($page['edited_text'] ?? ''));
+    return $edited !== '' ? $edited : trim((string)($page['text'] ?? ''));
+}
+
+/** Jedna stránka i s obrázkem; null, když neexistuje */
+function getOcrPage(int $pageId): ?array {
+    try {
+        $stmt = getDB()->prepare('SELECT * FROM ocr_pages WHERE id = ?');
+        $stmt->execute([$pageId]);
+        return $stmt->fetch() ?: null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/**
+ * Uloží ruční opravu přepisu jedné stránky.
+ *
+ * Zároveň zahodí text uložený u celé dávky — ten vznikl slepením stránek
+ * před opravou, takže by opravu přebil a uživatel by nechápal, proč se
+ * změna neprojevila.
+ */
+function saveOcrPageText(int $pageId, string $text): bool {
+    try {
+        $db   = getDB();
+        $page = getOcrPage($pageId);
+        if (!$page) return false;
+
+        $db->prepare('UPDATE ocr_pages SET edited_text = ? WHERE id = ?')
+           ->execute([trim($text) !== '' ? $text : null, $pageId]);
+        $db->prepare('UPDATE ocr_jobs SET edited_text = NULL, updated_at = ? WHERE id = ?')
+           ->execute([date('Y-m-d H:i:s'), (int)$page['job_id']]);
+        return true;
+    } catch (PDOException $e) {
+        return false;
+    }
 }
 
 /** Uloží ručně upravený text dávky */

@@ -1,8 +1,11 @@
 # Skenování učebnic přes Ollamu
 
-Vyfotíš stránky učebnice telefonem, nahraješ je do adminu a Ollama z nich
-udělá sadu na procvičování. Všechno běží u tebe doma — fotky se nikam
-neposílají.
+Vyfotíš stránky učebnice telefonem, nahraješ je do adminu a model z nich
+udělá sadu na procvičování.
+
+Číst je může buď **Ollama u tebe doma** (nic neodchází), nebo **komerční API**
+(přesnější přepis, ale fotky opustí domácí síť). Vybírá se v nastavení a dá se
+změnit u jednotlivé dávky.
 
 ## Jak to funguje
 
@@ -20,7 +23,39 @@ Výsledný JSON se navíc **neuloží rovnou** — jde do stejného validátoru 
 ručně vložená sada. Když model vyrobí duplicitu nebo zapomene odpověď,
 řekne ti to a do databáze se nedostane nic nezkontrolovaného.
 
-## Co potřebuješ
+## Porovnání s originálem
+
+U každé stránky je v tabulce tlačítko **Porovnat**. Otevře detail, kde je vlevo
+původní fotka a vpravo přepis v editovatelném poli — dá se tedy číst proti
+sobě, ne hádat. Co opravíš, se propíše do textu celé dávky, ze kterého se pak
+skládá sada; opravená stránka má v tabulce značku ✎.
+
+Na mobilu je fotka nad textem, na širokém displeji vedle sebe. Klepnutím se
+fotka otevře v plné velikosti.
+
+## Ollama, nebo komerční API?
+
+|  | Ollama | Komerční API |
+|---|---|---|
+| Fotky učebnice | zůstanou doma | odejdou ven |
+| Přesnost přepisu | slabší, hlavně diakritika | výrazně lepší |
+| Rychlost | podle karty, klidně minuty/stránku | sekundy |
+| Cena | proud | řádově haléře za stránku |
+| Kontext | musíš hlídat (viz níž) | v praxi neomezený |
+
+Nemusíš volit jednou provždy. Rozumné je jet na Ollamě a sáhnout po API u
+stránky, kterou lokální model nezvládl.
+
+**Rozhraní OpenAI umí i OpenRouter, Groq a další** — stačí přepsat adresu,
+žádná další úprava kódu není potřeba.
+
+### API klíč
+
+Vyplníš ho v nastavení; ukládá se do databáze a **do stránky se nikdy nevypisuje
+celý**, jen zamaskovaně (`sk-…a1b2`). Prázdné pole při ukládání znamená „nech
+ho být", ne „smaž ho" — na smazání je zvlášť zaškrtávátko.
+
+## Co potřebuješ pro Ollamu
 
 ### Ollama vedle aplikace
 
@@ -42,6 +77,12 @@ ollama pull llama3.2-vision     # čtení obrázků, ~8 GB
 ollama pull qwen2.5             # sestavení sady, ~5 GB
 ```
 
+**Když máš málo paměti na kartě, dej do obou polí tentýž model.** Dva různé se
+na 12 GB nevejdou současně a Ollama by je mezi krokem „přepis" a „sestavení"
+pořád přenačítala. Gemma 3 od velikosti 4B nahoru umí obrázky i text, takže
+pokryje obojí sama. K tomu se hodí `OLLAMA_KEEP_ALIVE=30m`, jinak Ollama model
+po pěti minutách nečinnosti uvolní.
+
 Na čtení obrázků jde použít i `minicpm-v` nebo `qwen2.5vl`. **Počítej s tím,
 že tohle je slabé místo celého řetězu** — malé vision modely dělají v české
 diakritice chyby a rozvržení stránky (sloupce, tabulky, číslování cvičení)
@@ -52,9 +93,23 @@ jsou to jednotky sekund.
 
 ## Nastavení v aplikaci
 
-**Admin → 🔍 Skenování učebnic** — nahoře vyplň adresu Ollamy a vyber oba
-modely. Jakmile adresa sedí, aplikace si sama načte seznam stažených modelů
-a nabídne ho v rozbalovacím seznamu.
+**Admin → 🔍 Skenování učebnic** — nahoře vyber výchozího poskytovatele a
+vyplň, co k němu patří. Jakmile spojení funguje, aplikace si sama načte seznam
+dostupných modelů a nabídne ho v rozbalovacím seznamu.
+
+### Velikost kontextu (jen Ollama)
+
+Ollama má ve výchozím stavu jen pár tisíc tokenů kontextu a **co se nevejde,
+tiše zahodí** — u sady sestavené z několika stránek by pak potichu chyběla
+poslední slovíčka. Aplikace si proto kontext říká sama; nastavuje se ve stejném
+formuláři jako modely a výchozí hodnota je 8192.
+
+Větší kontext zabere víc paměti na kartě. Na 12 GB je 8192 rozumný začátek;
+když máš dávky delší, zvyš ho a sleduj, jestli se model ještě vejde do VRAM.
+
+Pod přepsaným textem je vždycky vidět odhad, kolik tokenů zabírá a kolik je
+nastaveno — a když se to nemá šanci vejít, aplikace to řekne dřív, než dáš
+*Sestavit JSON*.
 
 ## Nahrání stránek
 
