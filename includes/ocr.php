@@ -240,3 +240,65 @@ function saveOcrText(int $jobId, string $text): bool {
         return false;
     }
 }
+
+/**
+ * Stav dávky pro dotazování z prohlížeče.
+ *
+ * Přepis jedné stránky trvá minuty, takže se nedá viset na jednom HTTP
+ * spojení — reverzní proxy ho utne a vrátí HTML chybovou stránku. Práce
+ * proto běží nezávisle na spojení a prohlížeč se ptá sem, jak to dopadlo.
+ *
+ * @return array{remaining:int, next_id:int, pages:array}
+ */
+function ocrJobStatus(int $jobId): array {
+    $pages = [];
+    $next  = 0;
+    foreach (ocrPages($jobId) as $p) {
+        $pages[] = [
+            'id'       => (int)$p['id'],
+            'position' => (int)$p['position'] + 1,
+            'status'   => $p['status'],
+            'error'    => $p['error'],
+            'seconds'  => (int)$p['seconds'],
+            'edited'   => trim((string)$p['edited_text']) !== '',
+        ];
+        if (!$next && in_array($p['status'], ['ceka', 'bezi'], true)) $next = (int)$p['id'];
+    }
+    return [
+        'remaining' => count(array_filter($pages, fn($p) => in_array($p['status'], ['ceka', 'bezi'], true))),
+        'next_id'   => $next,
+        'pages'     => $pages,
+    ];
+}
+
+/** Označí, že se sada začala skládat, a zahodí předchozí výsledek */
+function startBuild(int $jobId): void {
+    try {
+        getDB()->prepare('UPDATE ocr_jobs SET building = 1, built_json = NULL, built_error = ? WHERE id = ?')
+               ->execute(['', $jobId]);
+    } catch (PDOException $e) {
+    }
+}
+
+/** Uloží výsledek skládání (nebo důvod, proč se nepovedlo) */
+function finishBuild(int $jobId, string $json, string $error): void {
+    try {
+        getDB()->prepare('UPDATE ocr_jobs SET building = 0, built_json = ?, built_error = ?, updated_at = ? WHERE id = ?')
+               ->execute([$json !== '' ? $json : null, mb_substr($error, 0, 255), date('Y-m-d H:i:s'), $jobId]);
+    } catch (PDOException $e) {
+    }
+}
+
+/**
+ * Jak dopadlo skládání sady.
+ *
+ * @return array{building:bool, json:string, error:string}
+ */
+function buildStatus(int $jobId): array {
+    $job = getOcrJob($jobId);
+    return [
+        'building' => (bool)($job['building'] ?? false),
+        'json'     => (string)($job['built_json'] ?? ''),
+        'error'    => (string)($job['built_error'] ?? ''),
+    ];
+}

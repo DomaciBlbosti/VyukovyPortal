@@ -118,6 +118,9 @@ nastaveno — a když se to nemá šanci vejít, aplikace to řekne dřív, než
    obrázky.
 2. Vyber je všechny naráz do pole **Stránky** a dej *Nahrát a přepsat*.
 3. Přepis se rozjede sám, stránku po stránce, a u každé vidíš stav i čas.
+   **Práce běží na serveru nezávisle na prohlížeči** — když stránku zavřeš
+   nebo spojení utne reverzní proxy, přepis doběhne a po návratu ho tam
+   najdeš hotový.
    Stránka, která selhala (třeba když Ollama zrovna neběžela), má tlačítko
    **Znovu** — fotit ji podruhé nemusíš.
 
