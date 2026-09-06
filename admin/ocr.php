@@ -32,7 +32,13 @@ if (($_GET['image'] ?? '') !== '') {
 // ── AJAX: prohlížeč nahrává stránky a pak si říká o jejich zpracování ──
 if (($_POST['ajax'] ?? '') !== '') {
     header('Content-Type: application/json');
-    set_time_limit(900);   // vision model si na jednu stránku klidně vezme minuty
+    set_time_limit(900);      // vision model si na jednu stránku klidně vezme minuty
+    ignore_user_abort(true);  // proxy spojení utne, ale práce musí doběhnout a uložit se
+
+    // PHP drží soubor session zamčený po celou dobu požadavku, takže by se
+    // dotaz na stav zablokoval za běžícím přepisem. Nic do session nepíšeme,
+    // tak ji hned zavřeme.
+    session_write_close();
 
     switch ($_POST['ajax']) {
         case 'upload':
@@ -46,9 +52,17 @@ if (($_POST['ajax'] ?? '') !== '') {
             echo json_encode(['ok' => $ok, 'job_id' => $jobId]);
             exit;
 
+        case 'status':
+            echo json_encode(['ok' => true] + ocrJobStatus((int)($_POST['job_id'] ?? 0)));
+            exit;
+
         case 'process':
             $r = processNextOcrPage((int)($_POST['job_id'] ?? 0));
             echo json_encode(['ok' => true] + $r);
+            exit;
+
+        case 'build_status':
+            echo json_encode(['ok' => true] + buildStatus((int)($_POST['job_id'] ?? 0)));
             exit;
 
         case 'build':
@@ -58,6 +72,7 @@ if (($_POST['ajax'] ?? '') !== '') {
             $edited = trim((string)($_POST['text'] ?? ''));
             if ($edited !== '') saveOcrText($jobId, $edited);
 
+            startBuild($jobId);
             $job = getOcrJob($jobId);
             $r   = llmBuildSet(ocrJobText($jobId), [
                 'subject' => (string)($_POST['subject'] ?? 'ostatni'),
@@ -66,6 +81,10 @@ if (($_POST['ajax'] ?? '') !== '') {
                 'source'  => (string)($_POST['source'] ?? ''),
                 'kind'    => (string)($_POST['kind'] ?? 'dvojice'),
             ], (string)($job['provider'] ?? ''));
+
+            // Výsledek se ukládá do dávky, ne jen do odpovědi — když spojení
+            // mezitím spadlo, prohlížeč si ho vyzvedne dotazem na stav
+            finishBuild($jobId, $r['ok'] ? $r['json'] : '', $r['ok'] ? '' : $r['error']);
 
             if (!$r['ok']) { echo json_encode(['ok' => false, 'error' => $r['error'], 'warning' => $r['warning']]); exit; }
 
