@@ -10,6 +10,15 @@ require_once __DIR__ . '/settings.php';
 const OLLAMA_DEFAULT_URL = 'http://ollama:11434';
 
 /**
+ * Strop na délku odpovědi.
+ *
+ * Model, který se zacyklí, jinak mele tak dlouho, dokud nevyčerpá celý
+ * kontext — a to jsou u velkého modelu na domácí kartě klidně čtyři minuty
+ * čekání na nic. Přepis stránky ani sada tolik textu nepotřebují.
+ */
+const OLLAMA_MAX_TOKENS = 4096;
+
+/**
  * Adresa Ollamy. Pouštíme se jen na http(s) — jinam se server obracet nemá.
  * Vrací prázdný řetězec, když je adresa nesmyslná.
  */
@@ -22,11 +31,11 @@ function ollamaUrl(): string {
 /**
  * Zavolá Ollamu.
  *
- * @return array{ok:bool, body:array, error:string}
+ * @return array{ok:bool, body:array, error:string, code:int}
  */
 function ollamaCall(string $path, ?array $payload = null, int $timeout = 600): array {
     $base = ollamaUrl();
-    if ($base === '') return ['ok' => false, 'body' => [], 'error' => 'Adresa Ollamy není nastavená nebo není http(s).'];
+    if ($base === '') return ['ok' => false, 'body' => [], 'error' => 'Adresa Ollamy není nastavená nebo není http(s).', 'code' => 0];
 
     $ch = curl_init($base . $path);
     curl_setopt_array($ch, [
@@ -45,13 +54,13 @@ function ollamaCall(string $path, ?array $payload = null, int $timeout = 600): a
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($raw === false)  return ['ok' => false, 'body' => [], 'error' => 'Ollama neodpověděla: ' . $err];
-    if ($code >= 400)    return ['ok' => false, 'body' => [], 'error' => 'Ollama vrátila chybu ' . $code . ': ' . mb_substr((string)$raw, 0, 200)];
+    if ($raw === false)  return ['ok' => false, 'body' => [], 'error' => 'Ollama neodpověděla: ' . $err, 'code' => 0];
+    if ($code >= 400)    return ['ok' => false, 'body' => [], 'error' => 'Ollama vrátila chybu ' . $code . ': ' . mb_substr((string)$raw, 0, 200), 'code' => $code];
 
     $body = json_decode((string)$raw, true);
-    if (!is_array($body)) return ['ok' => false, 'body' => [], 'error' => 'Odpověď Ollamy nešla přečíst.'];
+    if (!is_array($body)) return ['ok' => false, 'body' => [], 'error' => 'Odpověď Ollamy nešla přečíst.', 'code' => $code];
 
-    return ['ok' => true, 'body' => $body, 'error' => ''];
+    return ['ok' => true, 'body' => $body, 'error' => '', 'code' => $code];
 }
 
 /**
@@ -88,6 +97,11 @@ function ollamaContextSize(): int {
 /**
  * Pošle Ollamě zadání a vrátí odpověď jako text.
  *
+ * Uvažování vypínáme. Uvažovací modely posílají myšlenkový postup do pole
+ * „thinking" a do „response" až závěr — a když se mezitím vyčerpá kontext,
+ * dorazí prázdná odpověď po několika minutách počítání. Přepis stránky ani
+ * sestavení sady uvažování nepotřebují.
+ *
  * @param ?string $imageB64 obrázek v base64 (bez „data:" prefixu), když jde o čtení stránky
  * @param bool    $wantJson vynutit JSON na výstupu
  * @return array{ok:bool, text:string, error:string}
@@ -95,21 +109,57 @@ function ollamaContextSize(): int {
 function ollamaGenerate(string $model, string $prompt, ?string $imageB64 = null, bool $wantJson = false): array {
     if ($model === '') return ['ok' => false, 'text' => '', 'error' => 'Není vybraný model pro Ollamu.'];
 
+    $ctx     = ollamaContextSize();
     $payload = [
         'model'   => $model,
         'prompt'  => $prompt,
         'stream'  => false,
+        'think'   => false,
         // přepis ani skládání sady není tvorba — chceme nudnou přesnost
-        'options' => ['temperature' => 0, 'num_ctx' => ollamaContextSize()],
+        'options' => [
+            'temperature' => 0,
+            'num_ctx'     => $ctx,
+            'num_predict' => min(OLLAMA_MAX_TOKENS, $ctx),
+        ],
     ];
     if ($imageB64 !== null) $payload['images'] = [$imageB64];
     if ($wantJson)          $payload['format'] = 'json';
 
     $r = ollamaCall('/api/generate', $payload);
+
+    // Modely bez podpory uvažování odmítnou parametr „think" chybou 400.
+    // Pro ty ho prostě vynecháme.
+    if (!$r['ok'] && $r['code'] === 400 && stripos($r['error'], 'think') !== false) {
+        unset($payload['think']);
+        $r = ollamaCall('/api/generate', $payload);
+    }
     if (!$r['ok']) return ['ok' => false, 'text' => '', 'error' => $r['error']];
 
     $text = trim((string)($r['body']['response'] ?? ''));
-    return $text === ''
-        ? ['ok' => false, 'text' => '', 'error' => 'Model vrátil prázdnou odpověď.']
-        : ['ok' => true,  'text' => $text, 'error' => ''];
+    if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => ''];
+
+    return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx)];
+}
+
+/**
+ * Proč přišla prázdná odpověď.
+ *
+ * Samotné „model nic nevrátil" uživateli nepomůže — tohle rozliší vyčerpaný
+ * kontext od modelu, který se upovídal v uvažování, a rovnou poradí, co s tím.
+ */
+function emptyAnswerReason(array $body, int $ctx): string {
+    $thinking = trim((string)($body['thinking'] ?? ''));
+    $reason   = (string)($body['done_reason'] ?? '');
+    $used     = (int)($body['prompt_eval_count'] ?? 0) + (int)($body['eval_count'] ?? 0);
+
+    if ($thinking !== '') {
+        return 'Model spotřeboval odpověď na uvažování (' . mb_strlen($thinking) . ' znaků) a k přepisu se nedostal. '
+             . 'Zkus model, který neuvažuje — třeba qwen2.5vl nebo minicpm-v.';
+    }
+    if ($reason === 'length' || ($ctx > 0 && $used >= $ctx - 8)) {
+        return 'Modelu došel kontext (' . $used . ' z ' . $ctx . ' tokenů) dřív, než odpověděl. '
+             . 'Zvyš kontext v nastavení, nebo zkus menší model.';
+    }
+    return 'Model vrátil prázdnou odpověď'
+         . ($reason !== '' ? ' (důvod ukončení: ' . $reason . ')' : '') . '.';
 }

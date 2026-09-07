@@ -83,6 +83,12 @@ pořád přenačítala. Gemma 3 od velikosti 4B nahoru umí obrázky i text, tak
 pokryje obojí sama. K tomu se hodí `OLLAMA_KEEP_ALIVE=30m`, jinak Ollama model
 po pěti minutách nečinnosti uvolní.
 
+**Uvažovací modely se na přepis nehodí.** Myšlenkový postup jim spolyká celý
+kontext a k samotnému přepisu se nedostanou — vypadá to jako by model po pár
+minutách vrátil prázdno. Aplikace uvažování vypíná (`think: false`), ale ne
+každý model to respektuje; když to na takový narazíš, řekne ti to a poradí
+sáhnout po jiném.
+
 Na čtení obrázků jde použít i `minicpm-v` nebo `qwen2.5vl`. **Počítej s tím,
 že tohle je slabé místo celého řetězu** — malé vision modely dělají v české
 diakritice chyby a rozvržení stránky (sloupce, tabulky, číslování cvičení)
