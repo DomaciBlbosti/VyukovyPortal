@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS ocr_pages (
     position   INT          NOT NULL DEFAULT 0,
     filename   VARCHAR(180) NOT NULL DEFAULT '',
     image_b64  MEDIUMTEXT   NULL,
+    thumb_b64  MEDIUMTEXT   NULL,
     status     VARCHAR(20)  NOT NULL DEFAULT 'ceka',
     text        MEDIUMTEXT  NULL,
     edited_text MEDIUMTEXT  NULL,
@@ -177,4 +178,27 @@ CREATE TABLE IF NOT EXISTS ocr_pages (
     seconds    INT          NOT NULL DEFAULT 0,
     INDEX idx_job (job_id, position),
     FOREIGN KEY (job_id) REFERENCES ocr_jobs(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Jednotlivé běhy modelu nad stránkou. Historie se drží, ať jde porovnat
+-- různé modely a zadání na stejném obrázku; stránka nese kopii vybraného běhu.
+CREATE TABLE IF NOT EXISTS ocr_runs (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    page_id    INT          NOT NULL,
+    batch      VARCHAR(40)  NOT NULL DEFAULT '',
+    provider   VARCHAR(20)  NOT NULL DEFAULT '',
+    model      VARCHAR(120) NOT NULL DEFAULT '',
+    prompt_key VARCHAR(40)  NOT NULL DEFAULT '',
+    prompt     TEXT         NULL,
+    status     VARCHAR(20)  NOT NULL DEFAULT 'ceka',
+    text       MEDIUMTEXT   NULL,
+    error      VARCHAR(255) NOT NULL DEFAULT '',
+    warning    VARCHAR(255) NOT NULL DEFAULT '',
+    seconds    INT          NOT NULL DEFAULT 0,
+    tokens     INT          NOT NULL DEFAULT 0,
+    chosen     TINYINT(1)   NOT NULL DEFAULT 0,
+    created_at DATETIME     NULL,
+    INDEX idx_page (page_id, id),
+    INDEX idx_batch (batch),
+    FOREIGN KEY (page_id) REFERENCES ocr_pages(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

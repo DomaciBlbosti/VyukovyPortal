@@ -104,10 +104,10 @@ function ollamaContextSize(): int {
  *
  * @param ?string $imageB64 obrázek v base64 (bez „data:" prefixu), když jde o čtení stránky
  * @param bool    $wantJson vynutit JSON na výstupu
- * @return array{ok:bool, text:string, error:string}
+ * @return array{ok:bool, text:string, error:string, tokens:int}
  */
 function ollamaGenerate(string $model, string $prompt, ?string $imageB64 = null, bool $wantJson = false): array {
-    if ($model === '') return ['ok' => false, 'text' => '', 'error' => 'Není vybraný model pro Ollamu.'];
+    if ($model === '') return ['ok' => false, 'text' => '', 'error' => 'Není vybraný model pro Ollamu.', 'tokens' => 0];
 
     $ctx     = ollamaContextSize();
     $payload = [
@@ -133,12 +133,34 @@ function ollamaGenerate(string $model, string $prompt, ?string $imageB64 = null,
         unset($payload['think']);
         $r = ollamaCall('/api/generate', $payload);
     }
-    if (!$r['ok']) return ['ok' => false, 'text' => '', 'error' => $r['error']];
+    if (!$r['ok']) return ['ok' => false, 'text' => '', 'error' => $r['error'], 'tokens' => 0];
 
-    $text = trim((string)($r['body']['response'] ?? ''));
-    if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => ''];
+    $text   = trim((string)($r['body']['response'] ?? ''));
+    $tokens = (int)($r['body']['eval_count'] ?? 0);
+    if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens];
 
-    return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx)];
+    return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx), 'tokens' => $tokens];
+}
+
+/**
+ * Co model umí — hlavně jestli vidí obrázky.
+ *
+ * Textový model dostane fotku stránky, mlčky ji zahodí a „přepíše" něco
+ * z hlavy. Tohle se dá zjistit dopředu a ušetřit minuty čekání na nesmysl.
+ *
+ * @return array{ok:bool, vision:bool, family:string, error:string}
+ */
+function ollamaShow(string $model): array {
+    $r = ollamaCall('/api/show', ['model' => $model], 20);
+    if (!$r['ok']) return ['ok' => false, 'vision' => false, 'family' => '', 'error' => $r['error']];
+
+    $caps = array_map('strval', (array)($r['body']['capabilities'] ?? []));
+    return [
+        'ok'     => true,
+        'vision' => in_array('vision', $caps, true),
+        'family' => (string)($r['body']['details']['family'] ?? ''),
+        'error'  => '',
+    ];
 }
 
 /**

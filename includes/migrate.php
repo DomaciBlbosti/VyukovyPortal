@@ -74,6 +74,7 @@ function runMigrations(PDO $db): array {
         ['ocr_jobs',  'built_json',  'ALTER TABLE ocr_jobs ADD COLUMN built_json MEDIUMTEXT NULL'],
         ['ocr_jobs',  'built_error', "ALTER TABLE ocr_jobs ADD COLUMN built_error VARCHAR(255) NOT NULL DEFAULT ''"],
         ['ocr_jobs',  'building',    'ALTER TABLE ocr_jobs ADD COLUMN building TINYINT(1) NOT NULL DEFAULT 0'],
+        ['ocr_pages', 'thumb_b64',   'ALTER TABLE ocr_pages ADD COLUMN thumb_b64 MEDIUMTEXT NULL'],
     ] as [$table, $column, $sql]) {
         try {
             $db->query("SELECT $column FROM $table LIMIT 1");
@@ -96,6 +97,25 @@ function runMigrations(PDO $db): array {
         $renamed += $stmt->rowCount();
     }
     if ($renamed) $done[] = "popisků her aktualizováno: $renamed";
+
+    // 8. Přepisy z doby před historií běhů — každá hotová stránka dostane
+    //    jeden „starý" běh, ať se v novém rozhraní neztratí a jde ho vybrat
+    try {
+        $rows = $db->query("SELECT p.id, p.status, p.text, p.error, p.seconds, j.provider
+                            FROM ocr_pages p JOIN ocr_jobs j ON j.id = p.job_id
+                            WHERE p.status IN ('hotovo', 'chyba')
+                              AND NOT EXISTS (SELECT 1 FROM ocr_runs r WHERE r.page_id = p.id)")->fetchAll();
+        $ins = $db->prepare('INSERT INTO ocr_runs (page_id, batch, provider, model, prompt_key, prompt, status, text, error, seconds, chosen, created_at)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+        foreach ($rows as $r) {
+            $ins->execute([$r['id'], '', (string)$r['provider'], '', 'legacy', null, $r['status'],
+                           $r['text'], (string)$r['error'], (int)$r['seconds'],
+                           $r['status'] === 'hotovo' ? 1 : 0, date('Y-m-d H:i:s')]);
+        }
+        if ($rows) $done[] = 'starších přepisů převedeno na běhy: ' . count($rows);
+    } catch (PDOException $e) {
+        // tabulky skenování ještě nejsou — nic k převedení
+    }
 
     return $done;
 }
