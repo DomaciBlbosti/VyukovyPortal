@@ -88,12 +88,16 @@ místo obrázku značka `[obrázek 1]`, aby model při skládání sady věděl,
 tam něco bylo, ale nezkoušel to popisovat.
 
 Zadání *Free OCR.* rámečky nedává — je nejrychlejší a text má stejně
-dobrý, ale stránka je pak jeden blok a obrázky se neuloží. Pro stránky
-s cvičeními proto ber markdown.
+dobrý, ale stránka je pak jeden blok a obrázky se neuloží. Zato jako jediné
+**zachová vynechávky** (`______`), které pracovní sešit má na doplnění;
+zadání s rámečky je zahazují.
 
-Co model neumí: prázdné řádky na doplnění (`________`) v přepisu nejsou.
-U doplňovaček z pracovního sešitu je tedy třeba text zkontrolovat a mezery
-dopsat jako `_`, jinak si je model při skládání sady domyslí.
+**Pro pracovní sešity proto ber *DeepSeek-OCR — rámečky + vynechávky*.**
+Jsou to dvě volání na stejnou fotku: první (markdown s rámečky) dá rozvržení
+a obrázky, druhé (*Free OCR.*) text s vynechávkami, a aplikace ke každému
+řádku bloku dohledá stejný řádek z druhého přepisu a vezme jeho znění.
+Výsledek má bloky, obrázky i `______`. Trvá dvakrát déle a když se texty
+obou volání moc neshodují, běh to řekne varováním.
 
 ### Varování u běhu
 
@@ -116,8 +120,9 @@ Pro ně:
 
 | Zadání | Přesné znění | Kdy |
 |---|---|---|
-| Free OCR. | `Free OCR.` | holý text, nejrychlejší — **začni tímhle** |
-| markdown | `<\|grounding\|>Convert the document to markdown.` | nadpisy, tabulky, seznamy |
+| Free OCR. | `Free OCR.` | holý text, nejrychlejší, zachová vynechávky — **začni tímhle** |
+| rámečky + vynechávky | markdown a pak `Free OCR.` (2 volání) | pracovní sešity: bloky, obrázky i `______` |
+| markdown | `<\|grounding\|>Convert the document to markdown.` | nadpisy, tabulky, seznamy, obrázky; vynechávky zahodí |
 | OCR this image | `<\|grounding\|>OCR this image.` | text s rozvržením |
 | Extract the text | `Extract the text in the image.` | když Free OCR vrací málo |
 | Strike-OCR | `Extract text from this image` | znění od autora strike-ocr, bez tečky |
@@ -214,8 +219,9 @@ Na čtení jde místo `deepseek-ocr` použít i obecný vision model
 **Když máš málo paměti na kartě, dej do obou polí tentýž obecný model.** Dva
 různé se na 12 GB nevejdou současně a Ollama by je mezi krokem „přepis" a
 „sestavení" pořád přenačítala. Gemma 3 od velikosti 4B nahoru umí obrázky
-i text, takže pokryje obojí sama. K tomu se hodí `OLLAMA_KEEP_ALIVE=30m`,
-jinak Ollama model po pěti minutách nečinnosti uvolní.
+i text, takže pokryje obojí sama. Aplikace si u každého volání říká
+o `keep_alive` 30 minut, takže model mezi stránkami nevypadne z karty
+a nenačítá se znovu; `OLLAMA_KEEP_ALIVE` nastavovat nemusíš.
 
 Aplikace se před přepisem u Ollamy zeptá, jestli model umí obrázky
 (`/api/show`), a textovému modelu fotku vůbec nepošle — řekne to rovnou.

@@ -338,9 +338,10 @@ function processNextOcrRun(string $batch = ''): array {
 
     $started = microtime(true);
     $res     = llmOcrPage((string)$page['image_b64'], [
-        'provider' => (string)$run['provider'],
-        'model'    => (string)$run['model'],
-        'prompt'   => (string)$run['prompt'],
+        'provider'   => (string)$run['provider'],
+        'model'      => (string)$run['model'],
+        'prompt'     => (string)$run['prompt'],
+        'prompt_key' => (string)$run['prompt_key'],
     ]);
     $secs = (int)round(microtime(true) - $started);
 

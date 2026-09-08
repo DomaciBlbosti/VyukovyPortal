@@ -115,6 +115,10 @@ function ollamaGenerate(string $model, string $prompt, ?string $imageB64 = null,
         'prompt'  => $prompt,
         'stream'  => false,
         'think'   => false,
+        // Načtení modelu do karty trvá klidně půl minuty; Ollama ho jinak po
+        // pěti minutách nečinnosti uvolní a při další stránce ho načítá znovu.
+        // Když bude potřebovat místo pro jiný model, vyhodí ho i tak.
+        'keep_alive' => '30m',
         // přepis ani skládání sady není tvorba — chceme nudnou přesnost
         'options' => [
             'temperature' => 0,

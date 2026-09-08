@@ -31,10 +31,12 @@ if (($_POST['ajax'] ?? '') !== '') {
             if ($model === '') { echo json_encode(['ok' => false, 'error' => 'Vyber model.']); exit; }
 
             $key  = (string)($_POST['prompt_key'] ?? ocrDefaultPromptKey());
-            $text = trim((string)($_POST['prompt_text'] ?? ''));
+            $text = str_replace("\r\n", "\n", trim((string)($_POST['prompt_text'] ?? '')));
             if ($text === '') { echo json_encode(['ok' => false, 'error' => 'Zadání pro model je prázdné.']); exit; }
             // Upravený preset už není preset — ať je v historii vidět, co se doopravdy poslalo
-            if (!isset(OCR_PROMPTS[$key]) || ($key !== 'custom' && $text !== OCR_PROMPTS[$key]['prompt'])) $key = 'custom';
+            // (u kombinovaného zadání stačí, že zůstaly dva řádky — obě věty si jde upravit)
+            $isCombo = $key === 'deepseek_combo' && substr_count(trim($text), "\n") >= 1;
+            if (!isset(OCR_PROMPTS[$key]) || ($key !== 'custom' && !$isCombo && $text !== OCR_PROMPTS[$key]['prompt'])) $key = 'custom';
 
             $batch = queueOcrRuns($ids, ['provider' => $provider, 'model' => $model, 'prompt_key' => $key, 'prompt' => $text]);
             echo json_encode(['ok' => true, 'batch' => $batch] + batchStatus($batch));
