@@ -137,7 +137,9 @@ function ollamaGenerate(string $model, string $prompt, ?string $imageB64 = null,
 
     $text   = trim((string)($r['body']['response'] ?? ''));
     $tokens = (int)($r['body']['eval_count'] ?? 0);
-    if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens];
+    // „length" = model narazil na num_predict; odpověď je useknutá (nebo se zacyklil)
+    $cut    = (string)($r['body']['done_reason'] ?? '') === 'length';
+    if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens, 'truncated' => $cut];
 
     return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx), 'tokens' => $tokens];
 }

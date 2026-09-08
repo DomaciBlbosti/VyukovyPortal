@@ -143,5 +143,27 @@ function runMigrations(PDO $db): array {
         $done[] = 'bloky se nepodařilo dopočítat: ' . $e->getMessage();
     }
 
+    // 10. Bloky ze zacykleného běhu (model chrlil image[[0, 0, 0, 0]] až do
+    //     limitu) — prázdné rámečky pryč, text běhu znovu z toho, co zbylo
+    try {
+        require_once __DIR__ . '/ocr.php';
+        $runs = $db->query('SELECT DISTINCT run_id FROM ocr_blocks WHERE x2 <= x1 OR y2 <= y1')->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($runs as $runId) {
+            $del = $db->prepare('DELETE FROM ocr_blocks WHERE run_id = ? AND (x2 <= x1 OR y2 <= y1)');
+            $del->execute([$runId]);
+            $blocks = array_map(fn($b) => ['kind' => $b['kind'], 'box' => null, 'text' => (string)$b['text']], runBlocks((int)$runId));
+            $text   = blocksToText($blocks);
+            $warn   = 'Model se zacyklil na rámečcích (' . $del->rowCount() . ' opakování zahozeno) — konec stránky nejspíš chybí.';
+            $db->prepare('UPDATE ocr_runs SET text = ?, warning = ? WHERE id = ?')->execute([$text, $warn, $runId]);
+            $run = getOcrRun((int)$runId);
+            if ($run && (int)$run['chosen']) {
+                $db->prepare('UPDATE ocr_pages SET text = ? WHERE id = ?')->execute([$text, $run['page_id']]);
+            }
+        }
+        if ($runs) $done[] = 'zacyklené bloky uklizeny u běhů: ' . count($runs);
+    } catch (Throwable $e) {
+        $done[] = 'úklid zacyklených bloků selhal: ' . $e->getMessage();
+    }
+
     return $done;
 }

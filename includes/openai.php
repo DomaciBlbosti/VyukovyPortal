@@ -72,7 +72,8 @@ function openaiChat(string $model, array $messages, bool $wantJson = false, int 
     $text = trim((string)($body['choices'][0]['message']['content'] ?? ''));
     return $text === ''
         ? ['ok' => false, 'text' => '', 'error' => 'Model vrátil prázdnou odpověď.']
-        : ['ok' => true,  'text' => $text, 'error' => ''];
+        : ['ok' => true,  'text' => $text, 'error' => '',
+           'truncated' => (string)($body['choices'][0]['finish_reason'] ?? '') === 'length'];
 }
 
 /**
