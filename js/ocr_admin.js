@@ -68,7 +68,8 @@
     if (pickAll) pickAll.addEventListener('change', () => {
         document.querySelectorAll('.page-pick').forEach(c => { c.checked = pickAll.checked; });
     });
-    const picked = () => [...document.querySelectorAll('.page-pick:checked')].map(c => parseInt(c.value, 10));
+    // hodnoty jsou ID stránek (přepis) nebo klíče cvičení „stránka:index" (tvorba)
+    const picked = () => [...document.querySelectorAll('.page-pick:checked')].map(c => /^\d+$/.test(c.value) ? parseInt(c.value, 10) : c.value);
 
     // ── Galerie: nahrávání ──
     const uploadBtn = document.getElementById('uploadBtn');
@@ -188,6 +189,24 @@
             const out = document.getElementById('runProgress');
             queueAndRun([parseInt(rerunBtn.dataset.page, 10)], rerunBtn, out, () => window.location.reload());
         });
+    }
+
+    // Bloky bez uloženého výřezu (server bez GD): vyřízne je prohlížeč z fotky
+    const cropCanvases = document.querySelectorAll('canvas.ocr-crop[data-box]');
+    if (cropCanvases.length && typeof PAGE_IMAGE_URL === 'string') {
+        const img = new Image();
+        img.onload = () => cropCanvases.forEach(c => {
+            const [x1, y1, x2, y2] = c.dataset.box.split(',').map(Number);
+            const pad = 8;
+            const sx = Math.max(0, Math.floor(x1 / 1000 * img.width) - pad);
+            const sy = Math.max(0, Math.floor(y1 / 1000 * img.height) - pad);
+            const sw = Math.min(img.width, Math.ceil(x2 / 1000 * img.width) + pad) - sx;
+            const sh = Math.min(img.height, Math.ceil(y2 / 1000 * img.height) + pad) - sy;
+            if (sw < 8 || sh < 8) return;
+            c.width = sw; c.height = sh;
+            c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+        });
+        img.src = PAGE_IMAGE_URL;
     }
 
     // Historie běhů: rozbalit text

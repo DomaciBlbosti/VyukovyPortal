@@ -347,6 +347,7 @@ function processNextOcrRun(string $batch = ''): array {
     if ($res['ok']) {
         $db->prepare('UPDATE ocr_runs SET status = ?, text = ?, error = ?, warning = ?, seconds = ?, tokens = ? WHERE id = ?')
            ->execute(['hotovo', $res['text'], '', mb_substr($res['warning'], 0, 255), $secs, $res['tokens'], $run['id']]);
+        if (!empty($res['blocks'])) saveOcrBlocks((int)$run['id'], (int)$page['id'], $res['blocks'], (string)$page['image_b64']);
         // Podezřelý běh (zacyklení, zopakované zadání) nesmí přebít dobrý
         // přepis; platným se stane jen tam, kde zatím žádný není
         if ($res['warning'] === '' || trim((string)$page['text']) === '') {
@@ -443,6 +444,124 @@ function batchStatus(string $batch): array {
         'next_id'   => $next,
         'runs'      => $runs,
     ];
+}
+
+// ── Bloky ──
+
+/**
+ * Uloží bloky běhu. U obrázků rovnou vyřízne kus stránky, když je k dispozici
+ * GD; bez něj zůstanou jen souřadnice a výřez si udělá prohlížeč.
+ */
+function saveOcrBlocks(int $runId, int $pageId, array $blocks, string $pageImageB64): void {
+    try {
+        $db = getDB();
+        $db->prepare('DELETE FROM ocr_blocks WHERE run_id = ?')->execute([$runId]);
+        $ins = $db->prepare('INSERT INTO ocr_blocks (run_id, page_id, position, kind, x1, y1, x2, y2, text, image_b64)
+                             VALUES (?,?,?,?,?,?,?,?,?,?)');
+        foreach ($blocks as $i => $b) {
+            $box  = $b['box'] ?? [0, 0, 0, 0];
+            $crop = ocrBlockIsImage($b['kind']) && $b['box'] ? cropPageImage($pageImageB64, $box) : '';
+            $ins->execute([$runId, $pageId, $i, mb_substr($b['kind'], 0, 20), $box[0], $box[1], $box[2], $box[3],
+                           $b['text'] !== '' ? $b['text'] : null, $crop !== '' ? $crop : null]);
+        }
+    } catch (PDOException $e) {
+        ocrFail($e);
+    }
+}
+
+/**
+ * Vyřízne z fotky stránky obdélník daný v tisícinách rozměru.
+ * Vrací JPEG v base64; prázdný řetězec bez GD nebo při chybě.
+ */
+function cropPageImage(string $imageB64, array $box): string {
+    if (!function_exists('imagecreatefromstring') || $imageB64 === '') return '';
+    $img = @imagecreatefromstring(base64_decode($imageB64));
+    if (!$img) return '';
+    $w = imagesx($img);
+    $h = imagesy($img);
+    // Malý přesah, ať rámeček neuřízne okraj kresby
+    $pad = 8;
+    $x1 = max(0, (int)floor($box[0] / 1000 * $w) - $pad);
+    $y1 = max(0, (int)floor($box[1] / 1000 * $h) - $pad);
+    $x2 = min($w, (int)ceil($box[2] / 1000 * $w) + $pad);
+    $y2 = min($h, (int)ceil($box[3] / 1000 * $h) + $pad);
+    if ($x2 - $x1 < 8 || $y2 - $y1 < 8) { imagedestroy($img); return ''; }
+
+    $crop = imagecrop($img, ['x' => $x1, 'y' => $y1, 'width' => $x2 - $x1, 'height' => $y2 - $y1]);
+    imagedestroy($img);
+    if (!$crop) return '';
+    ob_start();
+    imagejpeg($crop, null, 85);
+    imagedestroy($crop);
+    return base64_encode((string)ob_get_clean());
+}
+
+/** Bloky jednoho běhu v pořadí, bez obrázkových dat */
+function runBlocks(int $runId): array {
+    try {
+        $stmt = getDB()->prepare('SELECT id, run_id, page_id, position, kind, x1, y1, x2, y2, text,
+                                         (image_b64 IS NOT NULL) AS has_image
+                                  FROM ocr_blocks WHERE run_id = ? ORDER BY position ASC');
+        $stmt->execute([$runId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/** Bloky platného (vybraného) běhu stránky */
+function pageBlocks(int $pageId): array {
+    try {
+        $stmt = getDB()->prepare('SELECT id FROM ocr_runs WHERE page_id = ? AND chosen = 1 LIMIT 1');
+        $stmt->execute([$pageId]);
+        $runId = (int)$stmt->fetchColumn();
+        return $runId ? runBlocks($runId) : [];
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/** Jeden blok i s výřezem; null, když neexistuje */
+function getOcrBlock(int $blockId): ?array {
+    try {
+        $stmt = getDB()->prepare('SELECT * FROM ocr_blocks WHERE id = ?');
+        $stmt->execute([$blockId]);
+        return $stmt->fetch() ?: null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/**
+ * Cvičení na stránce: skupiny bloků s popiskem a textem. Ručně opravená
+ * stránka je jedna skupina — oprava platí pro celý text a bloky by ji obešly.
+ *
+ * @return array<int, array{key:string, label:string, text:string, images:int, blocks:array}>
+ */
+function pageExercises(array $page, bool $ignoreEdited = false): array {
+    if (!$ignoreEdited && trim((string)($page['edited_text'] ?? '')) !== '') {
+        return [['key' => $page['id'] . ':edited', 'label' => 'celá stránka (ručně opravený text)',
+                 'text' => pageText($page), 'images' => 0, 'blocks' => []]];
+    }
+    $blocks = pageBlocks((int)$page['id']);
+    if (!$blocks) {
+        $t = pageText($page);
+        return $t === '' ? [] : [['key' => $page['id'] . ':all', 'label' => 'celá stránka', 'text' => $t, 'images' => 0, 'blocks' => []]];
+    }
+    $shaped = array_map(fn($b) => ['kind' => $b['kind'], 'box' => [(int)$b['x1'], (int)$b['y1'], (int)$b['x2'], (int)$b['y2']],
+                                   'text' => (string)$b['text']], $blocks);
+    $out = [];
+    foreach (groupOcrBlocks($shaped) as $i => $g) {
+        $mine = array_map(fn($j) => $shaped[$j], $g['blocks']);
+        $out[] = [
+            'key'    => $page['id'] . ':' . $i,
+            'label'  => $g['label'],
+            'text'   => blocksToText($mine),
+            'images' => count(array_filter($mine, fn($b) => ocrBlockIsImage($b['kind']))),
+            'blocks' => array_map(fn($j) => $blocks[$j], $g['blocks']),
+        ];
+    }
+    return $out;
 }
 
 // ── Text alba a sestavení sady ──

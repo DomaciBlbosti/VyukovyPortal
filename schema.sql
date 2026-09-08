@@ -202,3 +202,22 @@ CREATE TABLE IF NOT EXISTS ocr_runs (
     INDEX idx_batch (batch),
     FOREIGN KEY (page_id) REFERENCES ocr_pages(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Bloky stránky podle rámečků z OCR modelu: odstavce, nadpisy, obrázky.
+-- Souřadnice jsou v tisícinách rozměru obrázku; u obrázků je uložený výřez.
+CREATE TABLE IF NOT EXISTS ocr_blocks (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    run_id     INT          NOT NULL,
+    page_id    INT          NOT NULL,
+    position   INT          NOT NULL DEFAULT 0,
+    kind       VARCHAR(20)  NOT NULL DEFAULT 'text',
+    x1         INT          NOT NULL DEFAULT 0,
+    y1         INT          NOT NULL DEFAULT 0,
+    x2         INT          NOT NULL DEFAULT 0,
+    y2         INT          NOT NULL DEFAULT 0,
+    text       MEDIUMTEXT   NULL,
+    image_b64  MEDIUMTEXT   NULL,
+    INDEX idx_run (run_id, position),
+    INDEX idx_page (page_id),
+    FOREIGN KEY (run_id) REFERENCES ocr_runs(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

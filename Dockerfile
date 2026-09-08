@@ -1,12 +1,15 @@
-# Obraz nese jen toolchain (PHP 8.3 + Apache + git). Vlastní kód se za běhu
+# Obraz nese jen toolchain (PHP 8.3 + Apache + git + GD na výřezy obrázků
+# z naskenovaných stránek). Vlastní kód se za běhu
 # naklonuje z Gitu do volume /var/www/html a aktualizuje přes `git pull`
 # při každém restartu kontejneru (self-update jako Kuchařka).
 FROM php:8.3-apache
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git curl ca-certificates default-mysql-client \
+       libjpeg62-turbo-dev libpng-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install pdo_mysql \
+    && docker-php-ext-configure gd --with-jpeg \
+    && docker-php-ext-install pdo_mysql gd \
     && a2enmod rewrite headers expires
 
 # .htaccess aplikace musí fungovat (bezpečnostní hlavičky, ochrana config/)

@@ -120,5 +120,28 @@ function runMigrations(PDO $db): array {
         // tabulky skenování ještě nejsou — nic k převedení
     }
 
+    // 9. Bloky k běhům z doby, kdy se rámečky z modelu jen ukládaly do
+    //    textu — dopočítají se z něj a text se vyčistí od souřadnic
+    try {
+        require_once __DIR__ . '/ocr.php';
+        $rows = $db->query("SELECT r.id, r.page_id, r.text, r.chosen FROM ocr_runs r
+                            WHERE r.status = 'hotovo' AND r.text LIKE '%[[%'
+                              AND NOT EXISTS (SELECT 1 FROM ocr_blocks b WHERE b.run_id = r.id)")->fetchAll();
+        $n = 0;
+        foreach ($rows as $r) {
+            $blocks = parseOcrBlocks((string)$r['text']);
+            if (!$blocks) continue;
+            $page = getOcrPage((int)$r['page_id']);
+            saveOcrBlocks((int)$r['id'], (int)$r['page_id'], $blocks, (string)($page['image_b64'] ?? ''));
+            $clean = blocksToText($blocks);
+            $db->prepare('UPDATE ocr_runs SET text = ? WHERE id = ?')->execute([$clean, $r['id']]);
+            if ((int)$r['chosen']) $db->prepare('UPDATE ocr_pages SET text = ? WHERE id = ?')->execute([$clean, $r['page_id']]);
+            $n++;
+        }
+        if ($n) $done[] = "bloky dopočítány u běhů: $n";
+    } catch (Throwable $e) {
+        $done[] = 'bloky se nepodařilo dopočítat: ' . $e->getMessage();
+    }
+
     return $done;
 }

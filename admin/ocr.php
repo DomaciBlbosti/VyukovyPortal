@@ -142,6 +142,39 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </section>
 
+<?php $exercises = pageExercises($detail, true); $blockCount = array_sum(array_map(fn($e) => count($e['blocks']), $exercises)); ?>
+<?php if ($blockCount): $imgCount = array_sum(array_column($exercises, 'images')); ?>
+<section class="admin-card">
+    <h2 class="section-title">Bloky stránky (<?= $blockCount ?><?= $imgCount ? ', obrázků ' . $imgCount : '' ?>)</h2>
+    <p class="mistake-hint" style="margin-bottom:1rem">
+        Rozvržení podle rámečků z modelu: nadpisy, odstavce a obrázky, seskupené do cvičení.
+        V <a href="<?= BASE_URL ?>/admin/tvorba.php?album=<?= (int)$detail['job_id'] ?>">tvorbě sad</a> jde vybrat jen některé cvičení.
+        Obrázky se vyřezávají z fotky<?= function_exists('imagecreatefromstring') ? '' : ' — na serveru chybí GD, výřez dělá prohlížeč a neukládá se' ?>.
+    </p>
+    <?php foreach ($exercises as $ex): ?>
+    <div class="ocr-exercise">
+        <div class="ocr-exercise-head"><?= htmlspecialchars($ex['label']) ?>
+            <span class="mistake-hint">· bloků <?= count($ex['blocks']) ?><?= $ex['images'] ? ' · 🖼 ' . $ex['images'] : '' ?></span></div>
+        <?php foreach ($ex['blocks'] as $b): ?>
+        <div class="ocr-block">
+            <span class="ocr-block-kind"><?= htmlspecialchars($b['kind']) ?></span>
+            <?php if (ocrBlockIsImage($b['kind'])): ?>
+                <?php if ($b['has_image']): ?>
+                <a href="<?= BASE_URL ?>/admin/galerie.php?crop=<?= (int)$b['id'] ?>" target="_blank" rel="noopener">
+                    <img src="<?= BASE_URL ?>/admin/galerie.php?crop=<?= (int)$b['id'] ?>" class="ocr-crop" alt="výřez obrázku"></a>
+                <?php else: ?>
+                <canvas class="ocr-crop" data-box="<?= (int)$b['x1'] ?>,<?= (int)$b['y1'] ?>,<?= (int)$b['x2'] ?>,<?= (int)$b['y2'] ?>"></canvas>
+                <?php endif; ?>
+            <?php else: ?>
+                <pre class="ocr-block-text"><?= htmlspecialchars((string)$b['text']) ?></pre>
+            <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endforeach; ?>
+</section>
+<?php endif; ?>
+
 <section class="admin-card">
     <h2 class="section-title">Spustit model znovu na tuhle stránku</h2>
     <p class="mistake-hint" style="margin-bottom:1rem">
@@ -295,6 +328,7 @@ include __DIR__ . '/../includes/header.php';
 <script>
 const OCR_AJAX_URL = '<?= BASE_URL ?>/admin/ocr.php';
 const OCR_PROMPTS  = <?= promptPresetsJson() ?>;
+const PAGE_IMAGE_URL = <?= $detail ? json_encode(BASE_URL . '/admin/galerie.php?image=' . (int)$detail['id']) : 'null' ?>;
 </script>
 <script src="<?= asset_url('/js/ocr_admin.js') ?>"></script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

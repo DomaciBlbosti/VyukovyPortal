@@ -106,24 +106,31 @@ include __DIR__ . '/../includes/header.php';
         <a href="<?= BASE_URL ?>/admin/ocr.php?album=<?= $albumId ?>">pusť nejdřív OCR</a>.</p>
     <?php else: ?>
     <p class="mistake-hint" style="margin:1rem 0 .5rem">
-        Zaškrtni stránky, ze kterých se má text poskládat, a dej <strong>Načíst text ze stránek</strong>.
-        Text níž pak můžeš ještě upravit — co je špatně v něm, bude špatně i v sadě.
+        Zaškrtni, co se má do textu vzít — celé stránky, nebo jen jednotlivá cvičení (podle bloků z modelu) —
+        a dej <strong>Načíst text</strong>. Text níž pak můžeš ještě upravit; co je špatně v něm, bude špatně i v sadě.
     </p>
-    <table class="data-table">
-        <thead><tr><th><input type="checkbox" id="pickAll" checked title="vybrat vše"></th><th></th><th>#</th><th>Začátek přepisu</th><th></th></tr></thead>
-        <tbody>
-        <?php foreach ($pages as $p): ?>
-            <tr>
-                <td><input type="checkbox" class="page-pick" value="<?= (int)$p['id'] ?>" checked></td>
-                <td><?= pageThumb($p) ?></td>
-                <td><?= (int)$p['position'] + 1 ?></td>
-                <td style="font-size:.8rem;color:var(--muted)"><?= htmlspecialchars(mb_substr(preg_replace('/\s+/', ' ', pageText($p)), 0, 90)) ?>…
-                    <?php if (trim((string)$p['edited_text']) !== ''): ?> ✎<?php endif; ?></td>
-                <td><a href="<?= BASE_URL ?>/admin/ocr.php?page=<?= (int)$p['id'] ?>" class="btn-sm btn-sm-blue">Porovnat</a></td>
-            </tr>
+    <label class="mistake-hint" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem">
+        <input type="checkbox" id="pickAll" checked> vybrat vše
+    </label>
+    <?php $groups = []; foreach ($pages as $p): $ex = pageExercises($p); foreach ($ex as $e) $groups[$e['key']] = $e['text']; ?>
+    <div class="ocr-exercise-page">
+        <div class="ocr-exercise-page-head">
+            <?= pageThumb($p) ?>
+            <div>
+                <strong>Stránka <?= (int)$p['position'] + 1 ?></strong>
+                <span class="mistake-hint"><?= htmlspecialchars($p['filename']) ?><?php if (trim((string)$p['edited_text']) !== ''): ?> · ✎ ručně opraveno<?php endif; ?></span><br>
+                <a href="<?= BASE_URL ?>/admin/ocr.php?page=<?= (int)$p['id'] ?>" class="btn-sm btn-sm-blue">Porovnat</a>
+            </div>
+        </div>
+        <?php foreach ($ex as $e): ?>
+        <label class="ocr-exercise-pick">
+            <input type="checkbox" class="page-pick" value="<?= htmlspecialchars($e['key']) ?>" checked>
+            <span><?= htmlspecialchars($e['label']) ?>
+                <span class="mistake-hint">· <?= mb_strlen($e['text']) ?> zn.<?= $e['images'] ? ' · 🖼 ' . $e['images'] : '' ?></span></span>
+        </label>
         <?php endforeach; ?>
-        </tbody>
-    </table>
+    </div>
+    <?php endforeach; ?>
     <button type="button" id="loadTextBtn" class="btn-secondary" style="margin-top:.75rem">Načíst text ze stránek ↓</button>
     <?php endif; ?>
 </section>
@@ -244,8 +251,7 @@ include __DIR__ . '/../includes/header.php';
 const OCR_AJAX_URL = '<?= BASE_URL ?>/admin/tvorba.php';
 const OCR_ALBUM_ID = <?= (int)$albumId ?>;
 const OCR_CTX      = <?= (int)$ctxSize ?>;
-const PAGE_TEXTS   = <?= json_encode(array_combine(array_map(fn($p) => (int)$p['id'], $pages), array_map('pageText', $pages)) ?: [],
-                                     JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_FORCE_OBJECT) ?>;
+const PAGE_TEXTS   = <?= json_encode($groups ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_FORCE_OBJECT) ?>;
 </script>
 <script src="<?= asset_url('/js/ocr_admin.js') ?>"></script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
