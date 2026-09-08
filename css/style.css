@@ -1394,3 +1394,34 @@ a:hover { text-decoration: underline; }
 @media (max-width: 800px) {
     .ocr-compare { grid-template-columns: 1fr; }
 }
+
+/* ── Skenování: záložky, galerie, historie běhů ──────────────── */
+.ocr-tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin: -.5rem 0 1.5rem; }
+.ocr-tab {
+    padding: .5rem .9rem; border-radius: 999px; font-size: .85rem; text-decoration: none;
+    color: var(--muted); background: var(--bg2); border: 1px solid var(--border);
+    transition: color .15s, border-color .15s;
+}
+.ocr-tab:hover  { color: var(--text); }
+.ocr-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(74,222,128,.08); }
+
+.ocr-thumb {
+    width: 56px; height: 56px; object-fit: cover; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff; display: block;
+}
+
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+.gallery-card {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: .6rem; display: flex; flex-direction: column; gap: .5rem;
+}
+.gallery-img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; background: #fff; display: block; }
+.gallery-meta { font-size: .8rem; line-height: 1.4; word-break: break-word; }
+.gallery-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.gallery-actions form { margin: 0; }
+.gallery-actions button[disabled] { opacity: .35; cursor: default; }
+
+.ocr-run-text {
+    white-space: pre-wrap; font-size: .8rem; margin: 0; max-height: 22rem; overflow: auto;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: .75rem;
+}
