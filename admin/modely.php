@@ -25,7 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'setti
     $key = (string)($_POST['prompt_key'] ?? 'vlm_cs');
     setSetting('ocr_prompt_key', isset(OCR_PROMPTS[$key]) ? $key : 'vlm_cs');
     // Upravený text presetu si uložíme jako vlastní zadání, ať se neztratí
-    $text = trim((string)($_POST['prompt_text'] ?? ''));
+    // prohlížeč posílá z textarea konce řádků jako CRLF — jinak by se
+    // dvouřádkové zadání nikdy nerovnalo presetu
+    $text = str_replace("\r\n", "\n", trim((string)($_POST['prompt_text'] ?? '')));
     if ($key === 'custom' || ($text !== '' && isset(OCR_PROMPTS[$key]) && $text !== OCR_PROMPTS[$key]['prompt'])) {
         setSetting('ocr_custom_prompt', $text);
         if ($text !== '') setSetting('ocr_prompt_key', 'custom');

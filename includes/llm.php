@@ -41,6 +41,13 @@ const OCR_PROMPTS = [
         'prompt' => '<|grounding|>Convert the document to markdown.',
         'note'   => 'Zachová nadpisy, tabulky a seznamy. Souřadnicové značky, které model přidá, aplikace odstraní.',
     ],
+    'deepseek_combo' => [
+        'label'  => 'DeepSeek-OCR — rámečky + vynechávky (2 volání)',
+        'for'    => 'deepseek-ocr, strike-ocr — pracovní sešity',
+        'prompt' => "<|grounding|>Convert the document to markdown.\nFree OCR.",
+        'note'   => 'Dvě volání na stejnou fotku: první dá rozvržení a obrázky, druhé text s vynechávkami (______). '
+                  . 'Řádky z druhého nahradí texty bloků z prvního. Trvá dvakrát déle.',
+    ],
     'deepseek_layout' => [
         'label'  => 'DeepSeek-OCR — OCR this image',
         'for'    => 'deepseek-ocr, strike-ocr',
@@ -275,6 +282,91 @@ function cleanOcrText(string $text): string {
 }
 
 /**
+ * Klíč pro porovnání dvou řádků: jen písmena a číslice, malá.
+ * Vynechávky, hvězdičky, tečky za číslem — to všechno se mezi zadáními
+ * liší a při hledání stejného řádku to jen překáží.
+ */
+function ocrLineKey(string $line): string {
+    return mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', '', $line));
+}
+
+/**
+ * Doplní do bloků vynechávky z druhého přepisu.
+ *
+ * Zadání s rámečky (<|grounding|>) dá rozvržení a obrázky, ale prázdné
+ * řádky na doplnění („______") zahodí. „Free OCR." je naopak nechá, jenže
+ * nedá rámečky. Tady se ke každému řádku bloku hledá stejný řádek ve druhém
+ * přepisu — a když se najde, vezme se jeho znění i s vynechávkami.
+ *
+ * Hledá se postupně (druhý přepis jde po stránce stejným směrem), s malým
+ * oknem dopředu a možností, že jeden řádek bloku odpovídá dvěma či třem
+ * řádkům druhého přepisu.
+ *
+ * @return array{blocks:array, matched:int, total:int}
+ */
+function mergeBlanksIntoBlocks(array $blocks, string $freeText): array {
+    $free = [];
+    foreach (explode("\n", $freeText) as $l) {
+        $l = trim($l);
+        if ($l === '') continue;
+        // odrážky a číslování ze seznamu pryč — v bloku bývá jen číslo
+        $free[] = ['raw' => preg_replace('/^[-*]\s+/', '', $l), 'key' => ocrLineKey($l)];
+    }
+    $cursor  = 0;
+    $matched = 0;
+    $total   = 0;
+
+    foreach ($blocks as &$b) {
+        if (ocrBlockIsImage($b['kind']) || $b['text'] === '') continue;
+        $lines = explode("\n", $b['text']);
+        foreach ($lines as &$line) {
+            $key = ocrLineKey($line);
+            if (mb_strlen($key) < 3) continue;
+            $total++;
+
+            $best = null;
+            $bestScore = 0.0;
+            $end = min(count($free), $cursor + 40);
+            for ($j = $cursor; $j < $end; $j++) {
+                $candKey = '';
+                $candRaw = [];
+                for ($k = 0; $k < 3 && $j + $k < count($free); $k++) {
+                    $candKey .= $free[$j + $k]['key'];
+                    $candRaw[] = $free[$j + $k]['raw'];
+                    if (mb_strlen($candKey) > mb_strlen($key) * 1.6 + 6) break;
+                    similar_text($key, $candKey, $pct);
+                    $score = $pct / 100;
+                    if ($score > $bestScore) { $bestScore = $score; $best = [$j + $k + 1, implode("\n", $candRaw)]; }
+                }
+            }
+            if ($best && $bestScore >= 0.72) {
+                $line   = $best[1];
+                $cursor = $best[0];
+                $matched++;
+            }
+        }
+        unset($line);
+        $b['text'] = implode("\n", $lines);
+    }
+    unset($b);
+
+    // Když se řádek bloku spároval se dvěma řádky druhého přepisu, další blok
+    // („Fun with Art.") už je jen jejich ocas — ten by byl v textu dvakrát
+    $prevKey = '';
+    foreach ($blocks as $i => $b) {
+        if (ocrBlockIsImage($b['kind'])) continue;
+        $key = ocrLineKey($b['text']);
+        if ($key !== '' && $prevKey !== '' && mb_strlen($key) >= 3 && str_contains($prevKey, $key)) {
+            $blocks[$i]['text'] = '';
+            continue;
+        }
+        $prevKey = $key;
+    }
+    $blocks = array_values(array_filter($blocks, fn($b) => $b['text'] !== '' || ocrBlockIsImage($b['kind'])));
+    return ['blocks' => $blocks, 'matched' => $matched, 'total' => $total];
+}
+
+/**
  * Seskupí bloky do cvičení.
  *
  * Nadpis nebo blok začínající číslem cvičení („**1** Complete…", „3 T9 …")
@@ -288,7 +380,8 @@ function groupOcrBlocks(array $blocks): array {
     $open   = null;
     foreach ($blocks as $i => $b) {
         $isTitle  = $b['kind'] === 'title';
-        $isHeader = preg_match('/^(\*\*\d{1,2}\*\*|\d{1,2}\s+\*\*)/u', $b['text'])
+        // „**1** Complete…", „3 **Listen…", nebo nadpis „### 1" s textem na dalším řádku
+        $isHeader = preg_match('/^(\*\*\d{1,2}\*\*|\d{1,2}\s+\*\*|#{1,6}\s*\d{1,2}\s*(\n|$))/u', $b['text'])
                  || preg_match('/^(cvičení|exercise|úloha|úkol)\s*\d/iu', $b['text']);
         // Nadpis lekce zůstává s cvičením, které po něm následuje —
         // samostatná skupina jen s nadpisem by byla k ničemu
@@ -300,7 +393,10 @@ function groupOcrBlocks(array $blocks): array {
         $groups[$open]['blocks'][] = $i;
         if ($groups[$open]['label'] === '' || $isHeader) {
             $label = $b['text'] !== '' ? $b['text'] : (ocrBlockIsImage($b['kind']) ? 'obrázek' : $b['kind']);
-            $label = trim(preg_replace('/[*#_]+/', '', strtok($label, "\n")));
+            // Z „### 1\n**Complete…**" chceme „1 Complete…", ne jen „1"
+            $ls    = array_values(array_filter(array_map('trim', explode("\n", $label)), fn($l) => $l !== ''));
+            $label = trim(preg_replace('/[*#_]+/', '', $ls[0] ?? ''));
+            if (mb_strlen($label) <= 3 && isset($ls[1])) $label .= ' ' . trim(preg_replace('/[*#_]+/', '', $ls[1]));
             $groups[$open]['label'] = mb_substr($label, 0, 70) . (mb_strlen($label) > 70 ? '…' : '');
         }
     }
@@ -345,37 +441,87 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
     $provider = llmProvider((string)($opts['provider'] ?? ''));
     $model    = trim((string)($opts['model'] ?? '')) ?: llmModel($provider, 'vision');
     $prompt   = trim((string)($opts['prompt'] ?? '')) ?: ocrPromptText(ocrDefaultPromptKey());
+    $key      = (string)($opts['prompt_key'] ?? '');
     $fail     = fn(string $e) => ['ok' => false, 'text' => '', 'blocks' => [], 'error' => $e, 'warning' => '', 'tokens' => 0];
 
     if ($model === '')  return $fail('Není vybraný model pro čtení obrázků.');
     if ($prompt === '') return $fail('Zadání pro přepis je prázdné.');
 
-    if ($provider === 'openai') {
-        $r = openaiVision($model, $prompt, $imageB64);
-    } else {
+    if ($provider !== 'openai') {
         // Textový model by fotku mlčky zahodil a něco si vymyslel — radši
         // se zeptáme dopředu. Když se /api/show nepovede, jedeme dál.
         $show = ollamaShow($model);
         if ($show['ok'] && !$show['vision']) {
             return $fail('Model ' . $model . ' neumí obrázky (podle Ollamy nemá schopnost „vision"). Vyber vision model.');
         }
-        $r = ollamaGenerate($model, $prompt, $imageB64);
     }
+    $call = fn(string $p) => $provider === 'openai'
+        ? openaiVision($model, $p, $imageB64)
+        : ollamaGenerate($model, $p, $imageB64);
+
+    // Kombinované zadání: první řádek dá rámečky, druhý text s vynechávkami
+    $lines = array_values(array_filter(array_map('trim', explode("\n", $prompt)), fn($l) => $l !== ''));
+    if ($key === 'deepseek_combo' && count($lines) >= 2) {
+        return llmOcrPageCombo($call, $lines[0], $lines[1]);
+    }
+
+    $r = $call($prompt);
     if (!$r['ok']) return $fail($r['error']);
 
     $blocks = parseOcrBlocks($r['text'], $stats);
     $text   = $blocks ? blocksToText($blocks) : cleanOcrText($r['text']);
     if ($text === '') return $fail('Model vrátil prázdný přepis.');
 
+    return ['ok' => true, 'text' => $text, 'blocks' => $blocks, 'error' => '',
+            'warning' => ocrRunWarning($text, $prompt, $stats, $r), 'tokens' => (int)($r['tokens'] ?? 0)];
+}
+
+/**
+ * Dvě volání na stejnou fotku a jejich spojení (viz mergeBlanksIntoBlocks).
+ *
+ * Když selže první, zůstane holý text bez bloků; když druhé, zůstanou
+ * bloky bez vynechávek — v obou případech s varováním, ať je jasné, co chybí.
+ */
+function llmOcrPageCombo(callable $call, string $layoutPrompt, string $textPrompt): array {
+    $fail = fn(string $e) => ['ok' => false, 'text' => '', 'blocks' => [], 'error' => $e, 'warning' => '', 'tokens' => 0];
+
+    $a = $call($layoutPrompt);
+    $b = $call($textPrompt);
+    if (!$a['ok'] && !$b['ok']) return $fail($a['error']);
+
+    $tokens = (int)($a['tokens'] ?? 0) + (int)($b['tokens'] ?? 0);
+    $blocks = $a['ok'] ? parseOcrBlocks($a['text'], $stats) : [];
+    $free   = $b['ok'] ? cleanOcrText($b['text']) : '';
+
+    if (!$blocks) {
+        if ($free === '') return $fail('Model vrátil prázdný přepis.');
+        return ['ok' => true, 'text' => $free, 'blocks' => [], 'error' => '', 'tokens' => $tokens,
+                'warning' => 'Rámečky se nepovedly (' . ($a['ok'] ? 'model žádné nevrátil' : $a['error']) . ') — je jen text bez bloků a obrázků.'];
+    }
+    $warning = ocrRunWarning(blocksToText($blocks), $layoutPrompt, $stats, $a);
+    if ($free === '') {
+        $warning = $warning ?: 'Druhé volání (text s vynechávkami) selhalo: ' . $b['error'] . ' — bloky jsou bez vynechávek.';
+    } else {
+        $m = mergeBlanksIntoBlocks($blocks, $free);
+        $blocks = $m['blocks'];
+        if ($warning === '' && $m['total'] > 0 && $m['matched'] * 2 < $m['total']) {
+            $warning = 'Texty obou volání se moc neshodují (spárováno ' . $m['matched'] . ' z ' . $m['total'] . ' řádků) — vynechávky mohou chybět.';
+        }
+    }
+    return ['ok' => true, 'text' => blocksToText($blocks), 'blocks' => $blocks, 'error' => '',
+            'warning' => $warning, 'tokens' => $tokens];
+}
+
+/** Varování k běhu: opakování, zacyklení na rámečcích, useknutá odpověď */
+function ocrRunWarning(string $text, string $prompt, ?array $stats, array $r): string {
     $warning = ocrTextWarning($text, $prompt);
-    if ($warning === '' && $stats['dropped'] >= 10) {
+    if ($warning === '' && ($stats['dropped'] ?? 0) >= 10) {
         $warning = 'Model se zacyklil na rámečcích (' . $stats['dropped'] . ' opakování zahozeno) — konec stránky nejspíš chybí. Zkus jiné zadání, třeba Free OCR.';
     }
     if ($warning === '' && !empty($r['truncated'])) {
         $warning = 'Odpověď narazila na limit délky — konec stránky může chybět. Zkus kratší zadání nebo jiný model.';
     }
-    return ['ok' => true, 'text' => $text, 'blocks' => $blocks, 'error' => '',
-            'warning' => $warning, 'tokens' => (int)($r['tokens'] ?? 0)];
+    return $warning;
 }
 
 /** Zadání pro sestavení sady z přepsaného textu */
