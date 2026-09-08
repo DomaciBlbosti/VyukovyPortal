@@ -156,7 +156,8 @@ function estimateTokens(string $text): int {
  *
  * @return array<int, array{kind:string, box:?array{int,int,int,int}, text:string}>
  */
-function parseOcrBlocks(string $raw): array {
+function parseOcrBlocks(string $raw, ?array &$stats = null): array {
+    $stats = ['dropped' => 0];
     $s = preg_replace('/<\|ref\|>(.*?)<\|\/ref\|>\s*<\|det\|>(\[\[.*?\]\])<\|\/det\|>/su', '$1$2', $raw);
     $s = str_replace(['<|grounding|>', '<image>'], '', $s);
     if (!str_contains($s, '[[')) return [];
@@ -203,7 +204,24 @@ function parseOcrBlocks(string $raw): array {
         $b['text'] = ocrTidyText($b['text']);
     }
     unset($b);
-    return array_values(array_filter($blocks, fn($b) => $b['text'] !== '' || ocrBlockIsImage($b['kind'])));
+
+    // Zacyklený model chrlí pořád tentýž blok (typicky image[[0, 0, 0, 0]]),
+    // dokud mu nedojde limit odpovědi. Prázdné rámečky a opakování zahodíme
+    // a spočítáme, ať se dá stránka označit jako podezřelá.
+    $seen = [];
+    $out  = [];
+    foreach ($blocks as $b) {
+        $box  = $b['box'];
+        $bad  = $box && ($box[2] <= $box[0] || $box[3] <= $box[1]);
+        $key  = $b['kind'] . '|' . json_encode($box) . '|' . $b['text'];
+        if ($bad || isset($seen[$key]) || ($b['text'] === '' && !ocrBlockIsImage($b['kind']))) {
+            if ($bad || isset($seen[$key])) $stats['dropped']++;
+            continue;
+        }
+        $seen[$key] = true;
+        $out[] = $b;
+    }
+    return $out;
 }
 
 /** Druhy bloků, které jsou obrázek (a mají se vyříznout) */
@@ -345,12 +363,19 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
     }
     if (!$r['ok']) return $fail($r['error']);
 
-    $blocks = parseOcrBlocks($r['text']);
+    $blocks = parseOcrBlocks($r['text'], $stats);
     $text   = $blocks ? blocksToText($blocks) : cleanOcrText($r['text']);
     if ($text === '') return $fail('Model vrátil prázdný přepis.');
 
+    $warning = ocrTextWarning($text, $prompt);
+    if ($warning === '' && $stats['dropped'] >= 10) {
+        $warning = 'Model se zacyklil na rámečcích (' . $stats['dropped'] . ' opakování zahozeno) — konec stránky nejspíš chybí. Zkus jiné zadání, třeba Free OCR.';
+    }
+    if ($warning === '' && !empty($r['truncated'])) {
+        $warning = 'Odpověď narazila na limit délky — konec stránky může chybět. Zkus kratší zadání nebo jiný model.';
+    }
     return ['ok' => true, 'text' => $text, 'blocks' => $blocks, 'error' => '',
-            'warning' => ocrTextWarning($text, $prompt), 'tokens' => (int)($r['tokens'] ?? 0)];
+            'warning' => $warning, 'tokens' => (int)($r['tokens'] ?? 0)];
 }
 
 /** Zadání pro sestavení sady z přepsaného textu */
