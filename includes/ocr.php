@@ -296,8 +296,11 @@ function getOcrRun(int $runId): ?array {
 /** Historie běhů nad stránkou, nejnovější první */
 function pageRuns(int $pageId): array {
     try {
-        $stmt = getDB()->prepare('SELECT * FROM ocr_runs WHERE page_id = ? ORDER BY id DESC');
-        $stmt->execute([$pageId]);
+        $stmt = getDB()->prepare('SELECT r.*,
+                                         (SELECT COUNT(*) FROM ocr_blocks b WHERE b.run_id = r.id) AS block_count,
+                                         (SELECT COUNT(*) FROM ocr_blocks b WHERE b.run_id = r.id AND b.image_b64 IS NOT NULL OR b.run_id = r.id AND b.kind IN (?, ?)) AS image_count
+                                  FROM ocr_runs r WHERE r.page_id = ? ORDER BY r.id DESC');
+        $stmt->execute(['image', 'figure', $pageId]);
         return $stmt->fetchAll();
     } catch (PDOException $e) {
         return [];
@@ -350,8 +353,14 @@ function processNextOcrRun(string $batch = ''): array {
            ->execute(['hotovo', $res['text'], '', mb_substr($res['warning'], 0, 255), $secs, $res['tokens'], $run['id']]);
         if (!empty($res['blocks'])) saveOcrBlocks((int)$run['id'], (int)$page['id'], $res['blocks'], (string)$page['image_b64']);
         // Podezřelý běh (zacyklení, zopakované zadání) nesmí přebít dobrý
-        // přepis; platným se stane jen tam, kde zatím žádný není
-        if ($res['warning'] === '' || trim((string)$page['text']) === '') {
+        // přepis; platným se stane jen tam, kde zatím žádný pořádný není —
+        // tedy i tam, kde ten dosavadní má varování sám nebo je jen značka
+        $cur = $db->prepare('SELECT warning FROM ocr_runs WHERE page_id = ? AND chosen = 1 LIMIT 1');
+        $cur->execute([$page['id']]);
+        $curWarning = $cur->fetch();
+        $weakCurrent = trim((string)$page['text']) === '' || mb_strlen(trim((string)$page['text'])) < 50
+                    || ($curWarning !== false && (string)$curWarning['warning'] !== '');
+        if ($res['warning'] === '' || $weakCurrent) {
             chooseOcrRun((int)$run['id'], false);
         } else {
             $db->prepare('UPDATE ocr_pages SET status = ?, error = ? WHERE id = ?')->execute(['hotovo', '', $page['id']]);
