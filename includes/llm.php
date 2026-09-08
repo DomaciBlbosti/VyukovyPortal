@@ -220,6 +220,9 @@ function parseOcrBlocks(string $raw, ?array &$stats = null): array {
     foreach ($blocks as $b) {
         $box  = $b['box'];
         $bad  = $box && ($box[2] <= $box[0] || $box[3] <= $box[1]);
+        // „Obrázek" přes celou stránku znamená, že model stránku nerozpoznal —
+        // výřez by byl celá fotka a text by se schoval za jednu značku
+        if ($box && ocrBlockIsImage($b['kind']) && ($box[2] - $box[0]) * ($box[3] - $box[1]) >= 900000) { $stats['dropped']++; continue; }
         $key  = $b['kind'] . '|' . json_encode($box) . '|' . $b['text'];
         if ($bad || isset($seen[$key]) || ($b['text'] === '' && !ocrBlockIsImage($b['kind']))) {
             if ($bad || isset($seen[$key])) $stats['dropped']++;
@@ -340,8 +343,13 @@ function mergeBlanksIntoBlocks(array $blocks, string $freeText): array {
                 }
             }
             if ($best && $bestScore >= 0.72) {
-                $line   = $best[1];
-                $cursor = $best[0];
+                // Řádky druhého přepisu, které se přeskočily (typicky prázdná
+                // linka na odpověď „________"), patří sem před nalezený řádek
+                $start   = $best[0] - substr_count($best[1], "\n") - 1;
+                $skipped = array_slice($free, $cursor, max(0, $start - $cursor));
+                $extra   = count($skipped) <= 4 ? implode("\n", array_column($skipped, 'raw')) : '';
+                $line    = ($extra !== '' ? $extra . "\n" : '') . $best[1];
+                $cursor  = $best[0];
                 $matched++;
             }
         }
@@ -349,6 +357,24 @@ function mergeBlanksIntoBlocks(array $blocks, string $freeText): array {
         $b['text'] = implode("\n", $lines);
     }
     unset($b);
+
+    // Co ve druhém přepisu zbylo za posledním nalezeným řádkem, rámečky
+    // nepokryly (zacyklení, nebo model půl stránky prohlásil za obrázek).
+    // Ať to není ztracené — přidá se jako blok bez rámečku.
+    $rest = array_column(array_slice($free, $cursor), 'raw');
+    if (count($rest) >= 2 || mb_strlen(implode("\n", $rest)) >= 80) {
+        // Rozdělit na hranicích cvičení („### 3", „**4**"), ať se zbytek
+        // v tvorbě sad nabídne po cvičeních, ne jako jeden špalek
+        $chunk = [];
+        foreach ($rest as $l) {
+            if ($chunk && preg_match('/^(#{1,6}\s*\d{1,2}\s*$|\*\*\d{1,2}\*\*)/u', $l)) {
+                $blocks[] = ['kind' => 'text', 'box' => null, 'text' => trim(implode("\n", $chunk))];
+                $chunk = [];
+            }
+            $chunk[] = $l;
+        }
+        if ($chunk) $blocks[] = ['kind' => 'text', 'box' => null, 'text' => trim(implode("\n", $chunk))];
+    }
 
     // Když se řádek bloku spároval se dvěma řádky druhého přepisu, další blok
     // („Fun with Art.") už je jen jejich ocas — ten by byl v textu dvakrát
@@ -363,7 +389,7 @@ function mergeBlanksIntoBlocks(array $blocks, string $freeText): array {
         $prevKey = $key;
     }
     $blocks = array_values(array_filter($blocks, fn($b) => $b['text'] !== '' || ocrBlockIsImage($b['kind'])));
-    return ['blocks' => $blocks, 'matched' => $matched, 'total' => $total];
+    return ['blocks' => $blocks, 'matched' => $matched, 'total' => $total, 'leftover' => count($rest)];
 }
 
 /**
@@ -379,7 +405,7 @@ function groupOcrBlocks(array $blocks): array {
     $groups = [];
     $open   = null;
     foreach ($blocks as $i => $b) {
-        $isTitle  = $b['kind'] === 'title';
+        $isTitle  = $b['kind'] === 'title' && preg_match('/[\p{L}\p{N}]/u', $b['text']);
         // „**1** Complete…", „3 **Listen…", nebo nadpis „### 1" s textem na dalším řádku
         $isHeader = preg_match('/^(\*\*\d{1,2}\*\*|\d{1,2}\s+\*\*|#{1,6}\s*\d{1,2}\s*(\n|$))/u', $b['text'])
                  || preg_match('/^(cvičení|exercise|úloha|úkol)\s*\d/iu', $b['text']);
@@ -495,8 +521,10 @@ function llmOcrPageCombo(callable $call, string $layoutPrompt, string $textPromp
 
     if (!$blocks) {
         if ($free === '') return $fail('Model vrátil prázdný přepis.');
-        return ['ok' => true, 'text' => $free, 'blocks' => [], 'error' => '', 'tokens' => $tokens,
-                'warning' => 'Rámečky se nepovedly (' . ($a['ok'] ? 'model žádné nevrátil' : $a['error']) . ') — je jen text bez bloků a obrázků.'];
+        // Aspoň text rozdělený po cvičeních, i když bez rámečků a obrázků
+        $blocks = mergeBlanksIntoBlocks([], $free)['blocks'];
+        return ['ok' => true, 'text' => $free, 'blocks' => $blocks, 'error' => '', 'tokens' => $tokens,
+                'warning' => 'Rámečky se nepovedly (' . ($a['ok'] ? 'model je nevrátil nebo celou stránku prohlásil za obrázek' : $a['error']) . ') — je jen text bez obrázků.'];
     }
     $warning = ocrRunWarning(blocksToText($blocks), $layoutPrompt, $stats, $a);
     if ($free === '') {
@@ -506,6 +534,9 @@ function llmOcrPageCombo(callable $call, string $layoutPrompt, string $textPromp
         $blocks = $m['blocks'];
         if ($warning === '' && $m['total'] > 0 && $m['matched'] * 2 < $m['total']) {
             $warning = 'Texty obou volání se moc neshodují (spárováno ' . $m['matched'] . ' z ' . $m['total'] . ' řádků) — vynechávky mohou chybět.';
+        }
+        if ($m['leftover'] >= 5) {
+            $warning = $warning ?: 'Rámečky pokryly jen část stránky — zbytek textu (' . $m['leftover'] . ' řádků) je na konci jako blok bez rámečku a bez obrázků.';
         }
     }
     return ['ok' => true, 'text' => blocksToText($blocks), 'blocks' => $blocks, 'error' => '',
