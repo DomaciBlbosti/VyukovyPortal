@@ -72,6 +72,29 @@ Ruční oprava má vždycky přednost: když stránku opravíš a pak pustíš d
 běh, oprava zůstane platná, dokud si sám nevybereš jiný běh. Přijít o ni
 omylem nejde.
 
+### Bloky, cvičení a obrázky
+
+Se zadáním *DeepSeek-OCR — markdown* (`<|grounding|>Convert the document to
+markdown.`) vrací model ke každému kusu stránky i rámeček: nadpis, odstavec,
+obrázek. Aplikace z toho udělá **bloky** a seskupí je do **cvičení** — nová
+skupina začíná nadpisem nebo číslem cvičení (*1*, *2* … tak, jak je má
+pracovní sešit). V detailu stránky je vidíš pod přepisem; v *Tvorbě sad* si
+pak zaškrtneš jen to cvičení, ze kterého má sada vzniknout, ne celou stránku.
+
+**Obrázky na stránce** se podle rámečku vyříznou z fotky a uloží k bloku.
+Vyřezává je server (potřebuje rozšíření GD, které je v obrazu kontejneru);
+kdyby chybělo, výřez si udělá prohlížeč jen pro zobrazení. V přepisu je
+místo obrázku značka `[obrázek 1]`, aby model při skládání sady věděl, že
+tam něco bylo, ale nezkoušel to popisovat.
+
+Zadání *Free OCR.* rámečky nedává — je nejrychlejší a text má stejně
+dobrý, ale stránka je pak jeden blok a obrázky se neuloží. Pro stránky
+s cvičeními proto ber markdown.
+
+Co model neumí: prázdné řádky na doplnění (`________`) v přepisu nejsou.
+U doplňovaček z pracovního sešitu je tedy třeba text zkontrolovat a mezery
+dopsat jako `_`, jinak si je model při skládání sady domyslí.
+
 ### Varování u běhu
 
 Aplikace hlídá dva typické průšvihy, které by jinak prošly jako „hotovo":
@@ -136,8 +159,9 @@ Typ sady vybírej podle toho, co je na stránkách:
 | doplnovacka | věty s vynechaným slovem |
 | cteni | souvislý text a otázky k němu |
 
-**Na skládání sady patří obecný model** (gemma, qwen), ne specializovaný
-OCR model — ten JSON nesloží.
+**Na skládání sady patří obecný model** (gemma4, qwen3), ne specializovaný
+OCR model — ten JSON nesloží. Když je v nastavení jako textový model něco
+s „ocr" v názvu, aplikace na to upozorní červeně.
 
 ## Ollama, nebo komerční API?
 

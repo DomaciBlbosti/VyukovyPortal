@@ -25,6 +25,16 @@ foreach (['image' => 'image_b64', 'thumb' => 'thumb_b64'] as $param => $column) 
     exit;
 }
 
+// ── Výřez obrázku z bloku stránky ──
+if (($_GET['crop'] ?? '') !== '') {
+    $block = getOcrBlock((int)$_GET['crop']);
+    if (!$block || !$block['image_b64']) { http_response_code(404); exit; }
+    header('Content-Type: image/jpeg');
+    header('Cache-Control: private, max-age=3600');
+    echo base64_decode((string)$block['image_b64']);
+    exit;
+}
+
 // ── AJAX: nahrání jedné fotky ──
 if (($_POST['ajax'] ?? '') === 'upload') {
     header('Content-Type: application/json');

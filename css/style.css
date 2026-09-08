@@ -1421,6 +1421,19 @@ a:hover { text-decoration: underline; }
 .gallery-actions form { margin: 0; }
 .gallery-actions button[disabled] { opacity: .35; cursor: default; }
 
+.ocr-exercise { border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin-bottom: .75rem; background: var(--bg3); }
+.ocr-exercise-head { font-weight: 600; margin-bottom: .5rem; }
+.ocr-block { display: flex; gap: .6rem; align-items: flex-start; margin: .35rem 0; }
+.ocr-block-kind {
+    flex: none; font-family: var(--font-mono); font-size: .7rem; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px; padding: .1rem .35rem; min-width: 3.2rem; text-align: center;
+}
+.ocr-block-text { white-space: pre-wrap; font-size: .85rem; margin: 0; }
+.ocr-crop { max-width: 260px; max-height: 260px; border: 1px solid var(--border); border-radius: 6px; background: #fff; display: block; }
+.ocr-exercise-page { border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin-bottom: .75rem; }
+.ocr-exercise-page-head { display: flex; gap: .75rem; align-items: center; margin-bottom: .5rem; }
+.ocr-exercise-pick { display: flex; gap: .5rem; align-items: baseline; padding: .25rem 0; font-size: .9rem; cursor: pointer; }
+
 .ocr-run-text {
     white-space: pre-wrap; font-size: .8rem; margin: 0; max-height: 22rem; overflow: auto;
     background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: .75rem;

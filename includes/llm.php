@@ -134,19 +134,159 @@ function estimateTokens(string $text): int {
 }
 
 /**
- * Uklidí výstup OCR modelu.
+ * Rozloží výstup OCR modelu na bloky.
  *
- * DeepSeek-OCR se zadáním <|grounding|> vrací ke každému bloku souřadnice
- * v podobě <|ref|>…<|/ref|><|det|>[[x,y,x,y]]<|/det|>. K sadě jsou k ničemu
- * a dítě by je nemělo vidět.
+ * DeepSeek-OCR se zadáním <|grounding|> vrací ke každému kusu stránky
+ * i rámeček v souřadnicích 0–999 (podíl šířky a výšky obrázku). Pod Ollamou
+ * to vypadá takhle (speciální značky <|ref|>/<|det|> Ollama sama odstraní):
+ *
+ *   title[[67, 67, 424, 92]]
+ *   # 1C Mickey, Millie and Mut
+ *
+ *   image[[81, 165, 227, 240]]
+ *
+ *   text[[81, 241, 444, 264]]
+ *   1 What do children in the USA do on Thanksgiving Day, Casey?
+ *
+ * Zadání „OCR this image." dává místo toho řádek po řádku: obsah[[rámeček]].
+ * Z toho se skládají odstavce podle toho, jak řádky na sebe navazují.
+ *
+ * Bloky jsou k tomu, aby šlo ze stránky vybrat jedno cvičení a aby se
+ * obrázky daly vyříznout a uložit. Bez rámečků (Free OCR.) bloky nejsou.
+ *
+ * @return array<int, array{kind:string, box:?array{int,int,int,int}, text:string}>
  */
-function cleanOcrText(string $text): string {
-    $text = preg_replace('/<\|ref\|>.*?<\|\/ref\|>/su', '', $text);
-    $text = preg_replace('/<\|det\|>.*?<\|\/det\|>/su', '', $text);
-    $text = str_replace(['<|grounding|>', '<image>'], '', $text);
+function parseOcrBlocks(string $raw): array {
+    $s = preg_replace('/<\|ref\|>(.*?)<\|\/ref\|>\s*<\|det\|>(\[\[.*?\]\])<\|\/det\|>/su', '$1$2', $raw);
+    $s = str_replace(['<|grounding|>', '<image>'], '', $s);
+    if (!str_contains($s, '[[')) return [];
+
+    $box    = '\[\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\](?:,\s*\[[^\]]*\])*\]';
+    $blocks = [];
+    $cur    = null;
+    $flush  = function () use (&$blocks, &$cur) {
+        if ($cur !== null) { $cur['text'] = trim($cur['text']); $blocks[] = $cur; }
+        $cur = null;
+    };
+
+    foreach (explode("\n", $s) as $line) {
+        $t = trim($line);
+        // štítek bloku: druh + rámeček, obsah následuje na dalších řádcích
+        if (preg_match('/^([a-z_]+)' . $box . '$/', $t, $m)) {
+            $flush();
+            $cur = ['kind' => $m[1], 'box' => [(int)$m[2], (int)$m[3], (int)$m[4], (int)$m[5]], 'text' => ''];
+            continue;
+        }
+        // řádkový režim: obsah[[rámeček]]
+        if (preg_match('/^(.*?)\s*' . $box . '$/', $t, $m)) {
+            $flush();
+            $b = [(int)$m[2], (int)$m[3], (int)$m[4], (int)$m[5]];
+            // Řádky, které na sebe navazují (stejný levý okraj, těsně pod
+            // sebou), patří do jednoho odstavce
+            $last = $blocks ? $blocks[count($blocks) - 1] : null;
+            if ($last && $last['kind'] === 'text' && $last['box'] && !empty($last['_line'])
+                && abs($b[0] - $last['box'][0]) <= 40 && $b[1] - $last['box'][3] <= 12) {
+                $blocks[count($blocks) - 1]['text'] .= "\n" . trim($m[1]);
+                $blocks[count($blocks) - 1]['box'][2] = max($last['box'][2], $b[2]);
+                $blocks[count($blocks) - 1]['box'][3] = $b[3];
+            } else {
+                $blocks[] = ['kind' => 'text', 'box' => $b, 'text' => trim($m[1]), '_line' => true];
+            }
+            continue;
+        }
+        if ($cur !== null) $cur['text'] .= ($cur['text'] === '' ? '' : "\n") . $t;
+    }
+    $flush();
+
+    foreach ($blocks as &$b) {
+        unset($b['_line']);
+        $b['text'] = ocrTidyText($b['text']);
+    }
+    unset($b);
+    return array_values(array_filter($blocks, fn($b) => $b['text'] !== '' || ocrBlockIsImage($b['kind'])));
+}
+
+/** Druhy bloků, které jsou obrázek (a mají se vyříznout) */
+function ocrBlockIsImage(string $kind): bool {
+    return in_array($kind, ['image', 'figure', 'picture', 'photo'], true);
+}
+
+/**
+ * Drobný úklid textu: dělení slov na konci řádku („přita- hovány") a
+ * přebytečné mezery. Jen malá písmena po obou stranách — pomlčka mezi
+ * velkými písmeny nebo číslicemi bývá skutečná.
+ */
+function ocrTidyText(string $text): string {
+    $text = preg_replace('/(\p{Ll})- (\p{Ll})/u', '$1$2', $text);
     $text = preg_replace("/[ \t]+\n/", "\n", $text);
     $text = preg_replace("/\n{3,}/", "\n\n", $text);
     return trim($text);
+}
+
+/**
+ * Přepis stránky z bloků — obrázky nahradí značka, ať model při skládání
+ * sady ví, že tam něco bylo, ale nezkouší to popisovat.
+ */
+function blocksToText(array $blocks): string {
+    $parts = [];
+    $img   = 0;
+    foreach ($blocks as $b) {
+        if (ocrBlockIsImage($b['kind'])) {
+            $parts[] = '[obrázek ' . ++$img . ']';
+        } elseif ($b['text'] !== '') {
+            $parts[] = $b['text'];
+        }
+    }
+    return implode("\n\n", $parts);
+}
+
+/**
+ * Uklidí výstup OCR modelu na čistý přepis.
+ *
+ * S rámečky se text skládá z bloků (souřadnice pryč, obrázky jako značka);
+ * bez nich se jen odstraní zbytky značek a srovná dělení slov.
+ */
+function cleanOcrText(string $text): string {
+    $blocks = parseOcrBlocks($text);
+    if ($blocks) return blocksToText($blocks);
+
+    $text = preg_replace('/<\|ref\|>.*?<\|\/ref\|>/su', '', $text);
+    $text = preg_replace('/<\|det\|>.*?<\|\/det\|>/su', '', $text);
+    $text = str_replace(['<|grounding|>', '<image>'], '', $text);
+    return ocrTidyText($text);
+}
+
+/**
+ * Seskupí bloky do cvičení.
+ *
+ * Nadpis nebo blok začínající číslem cvičení („**1** Complete…", „3 T9 …")
+ * otevírá novou skupinu; co následuje, patří k ní až do dalšího. Na stránce
+ * bez cvičení vyjde jedna skupina za celou stránku.
+ *
+ * @return array<int, array{label:string, blocks:array<int,int>}> indexy do $blocks
+ */
+function groupOcrBlocks(array $blocks): array {
+    $groups = [];
+    $open   = null;
+    foreach ($blocks as $i => $b) {
+        $isTitle  = $b['kind'] === 'title';
+        $isHeader = preg_match('/^(\*\*\d{1,2}\*\*|\d{1,2}\s+\*\*)/u', $b['text'])
+                 || preg_match('/^(cvičení|exercise|úloha|úkol)\s*\d/iu', $b['text']);
+        // Nadpis lekce zůstává s cvičením, které po něm následuje —
+        // samostatná skupina jen s nadpisem by byla k ničemu
+        $onlyTitles = $open !== null && !array_filter($groups[$open]['blocks'], fn($j) => $blocks[$j]['kind'] !== 'title');
+        if ($open === null || $isTitle && !$onlyTitles || $isHeader && !$onlyTitles) {
+            $groups[] = ['label' => '', 'blocks' => []];
+            $open = count($groups) - 1;
+        }
+        $groups[$open]['blocks'][] = $i;
+        if ($groups[$open]['label'] === '' || $isHeader) {
+            $label = $b['text'] !== '' ? $b['text'] : (ocrBlockIsImage($b['kind']) ? 'obrázek' : $b['kind']);
+            $label = trim(preg_replace('/[*#_]+/', '', strtok($label, "\n")));
+            $groups[$open]['label'] = mb_substr($label, 0, 70) . (mb_strlen($label) > 70 ? '…' : '');
+        }
+    }
+    return $groups;
 }
 
 /**
@@ -181,13 +321,13 @@ function ocrTextWarning(string $text, string $prompt): string {
  *
  * @param array{provider?:string, model?:string, prompt?:string} $opts
  *        co není vyplněné, bere se z nastavení
- * @return array{ok:bool, text:string, error:string, warning:string, tokens:int}
+ * @return array{ok:bool, text:string, blocks:array, error:string, warning:string, tokens:int}
  */
 function llmOcrPage(string $imageB64, array $opts = []): array {
     $provider = llmProvider((string)($opts['provider'] ?? ''));
     $model    = trim((string)($opts['model'] ?? '')) ?: llmModel($provider, 'vision');
     $prompt   = trim((string)($opts['prompt'] ?? '')) ?: ocrPromptText(ocrDefaultPromptKey());
-    $fail     = fn(string $e) => ['ok' => false, 'text' => '', 'error' => $e, 'warning' => '', 'tokens' => 0];
+    $fail     = fn(string $e) => ['ok' => false, 'text' => '', 'blocks' => [], 'error' => $e, 'warning' => '', 'tokens' => 0];
 
     if ($model === '')  return $fail('Není vybraný model pro čtení obrázků.');
     if ($prompt === '') return $fail('Zadání pro přepis je prázdné.');
@@ -205,10 +345,11 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
     }
     if (!$r['ok']) return $fail($r['error']);
 
-    $text = cleanOcrText($r['text']);
+    $blocks = parseOcrBlocks($r['text']);
+    $text   = $blocks ? blocksToText($blocks) : cleanOcrText($r['text']);
     if ($text === '') return $fail('Model vrátil prázdný přepis.');
 
-    return ['ok' => true, 'text' => $text, 'error' => '',
+    return ['ok' => true, 'text' => $text, 'blocks' => $blocks, 'error' => '',
             'warning' => ocrTextWarning($text, $prompt), 'tokens' => (int)($r['tokens'] ?? 0)];
 }
 

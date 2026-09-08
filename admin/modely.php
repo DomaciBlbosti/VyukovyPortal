@@ -67,6 +67,14 @@ include __DIR__ . '/../includes/header.php';
         <div class="alert alert-error">✘ <?= htmlspecialchars(LLM_PROVIDERS[$provider]) ?>: <?= htmlspecialchars($activeProbe['error']) ?></div>
     <?php endif; ?>
 
+    <?php $textModel = llmModel($provider, 'text'); if (preg_match('/ocr/i', $textModel)): ?>
+    <div class="alert alert-error">
+        Na sestavení sady je nastavený <strong><?= htmlspecialchars($textModel) ?></strong>. To je specializovaný OCR model —
+        umí jen přepsat obrázek, JSON sady z textu nesloží. Do pole <em>Model na sestavení sady</em> dej obecný model
+        (gemma4:12b, qwen3:14b).
+    </div>
+    <?php endif; ?>
+
     <form method="post">
         <input type="hidden" name="action" value="settings">
 
