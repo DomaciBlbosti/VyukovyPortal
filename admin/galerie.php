@@ -33,13 +33,15 @@ if (($_POST['ajax'] ?? '') === 'upload') {
     $albumId = (int)($_POST['album_id'] ?? 0);
     if (!$albumId) {
         $albumId = createOcrJob((string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''), (int)$user['id']);
-        if (!$albumId) { echo json_encode(['ok' => false, 'error' => 'Album se nepodařilo založit.']); exit; }
+        if (!$albumId) { echo json_encode(['ok' => false, 'error' => 'Album se nepodařilo založit: ' . ocrLastError()]); exit; }
     } elseif (!getOcrJob($albumId)) {
         echo json_encode(['ok' => false, 'error' => 'Album neexistuje.']); exit;
     }
     $id = addOcrPage($albumId, (string)($_POST['filename'] ?? ''), (string)($_POST['image'] ?? ''), (string)($_POST['thumb'] ?? ''));
+    // Důvod posíláme dál — je to admin a bez něj by se nedalo zjistit, jestli
+    // chybí sloupec po nedoběhlé migraci, nebo je fotka moc velká
     echo json_encode(['ok' => $id > 0, 'album_id' => $albumId, 'page_id' => $id,
-                      'error' => $id ? '' : 'Fotku se nepodařilo uložit.']);
+                      'error' => $id ? '' : 'Fotku se nepodařilo uložit: ' . ocrLastError()]);
     exit;
 }
 
@@ -98,6 +100,13 @@ include __DIR__ . '/../includes/header.php';
 
 <?php if ($message): ?><div class="alert alert-success"><?= htmlspecialchars($message) ?></div><?php endif; ?>
 <?php if ($error): ?><div class="alert alert-error"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+<?php if (!ocrSchemaReady()): ?>
+<div class="alert alert-error">
+    Databáze není zmigrovaná na tuhle verzi (chybí <code>ocr_pages.thumb_b64</code> nebo tabulka <code>ocr_runs</code>),
+    nahrávání fotek by selhalo. Spusť migraci v
+    <a href="<?= BASE_URL ?>/admin/system.php">Systém &amp; aktualizace</a> tlačítkem <em>Aktualizovat</em>.
+</div>
+<?php endif; ?>
 
 <?php if ($album): ?>
 <section class="admin-card">
