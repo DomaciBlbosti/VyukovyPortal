@@ -219,8 +219,9 @@ Na čtení jde místo `deepseek-ocr` použít i obecný vision model
 **Když máš málo paměti na kartě, dej do obou polí tentýž obecný model.** Dva
 různé se na 12 GB nevejdou současně a Ollama by je mezi krokem „přepis" a
 „sestavení" pořád přenačítala. Gemma 3 od velikosti 4B nahoru umí obrázky
-i text, takže pokryje obojí sama. K tomu se hodí `OLLAMA_KEEP_ALIVE=30m`,
-jinak Ollama model po pěti minutách nečinnosti uvolní.
+i text, takže pokryje obojí sama. Aplikace si u každého volání říká
+o `keep_alive` 30 minut, takže model mezi stránkami nevypadne z karty
+a nenačítá se znovu; `OLLAMA_KEEP_ALIVE` nastavovat nemusíš.
 
 Aplikace se před přepisem u Ollamy zeptá, jestli model umí obrázky
 (`/api/show`), a textovému modelu fotku vůbec nepošle — řekne to rovnou.
