@@ -17,6 +17,39 @@ require_once __DIR__ . '/llm.php';
 /** Stavy, ve kterých se na běhu ještě pracuje */
 const OCR_OPEN = ['ceka', 'bezi'];
 
+/**
+ * Poslední chyba databáze při ukládání.
+ *
+ * „Nepodařilo se uložit" nikomu nepomůže — admin potřebuje vědět, jestli
+ * chybí sloupec po nedoběhlé migraci, nebo je fotka moc velká.
+ */
+function &ocrLastError(): string {
+    static $error = '';
+    return $error;
+}
+
+/** Zapamatuje si chybu a vrátí false/0, ať se dá použít přímo v catch */
+function ocrFail(PDOException $e): bool {
+    $err = &ocrLastError();
+    $err = $e->getMessage();
+    return false;
+}
+
+/**
+ * Je databáze na úrovni kódu? Po aktualizaci z Gitu bez migrace by
+ * nahrávání padalo na chybějícím sloupci a nikdo by nevěděl proč.
+ */
+function ocrSchemaReady(): bool {
+    try {
+        $db = getDB();
+        $db->query('SELECT thumb_b64 FROM ocr_pages LIMIT 1');
+        $db->query('SELECT id FROM ocr_runs LIMIT 1');
+        return true;
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
 // ── Alba ──
 
 /** Založí album a vrátí jeho ID; 0 při selhání */
@@ -29,6 +62,7 @@ function createOcrJob(string $title, string $note, int $userId, string $provider
                       isset(LLM_PROVIDERS[$provider]) ? $provider : '', $userId ?: null, $now, $now]);
         return (int)$db->lastInsertId();
     } catch (PDOException $e) {
+        ocrFail($e);
         return 0;
     }
 }
@@ -99,9 +133,11 @@ function addOcrPage(int $jobId, string $filename, string $imageB64, string $thum
         $db->prepare('INSERT INTO ocr_pages (job_id, position, filename, image_b64, thumb_b64, status) VALUES (?,?,?,?,?,?)')
            ->execute([$jobId, (int)$pos->fetchColumn(), mb_substr($filename, 0, 180), $imageB64,
                       $thumbB64 !== '' ? $thumbB64 : null, 'nova']);
+        $id = (int)$db->lastInsertId();
         $db->prepare('UPDATE ocr_jobs SET updated_at = ? WHERE id = ?')->execute([date('Y-m-d H:i:s'), $jobId]);
-        return (int)$db->lastInsertId();
+        return $id;
     } catch (PDOException $e) {
+        ocrFail($e);
         return 0;
     }
 }

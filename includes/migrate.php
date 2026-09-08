@@ -83,7 +83,10 @@ function runMigrations(PDO $db): array {
                 $db->exec($sql);
                 $done[] = "$table.$column přidán";
             } catch (PDOException $e2) {
-                // Tabulka ještě neexistuje (čerstvá instalace) — vznikne ze schema.sql
+                // Tabulky už ze schema.sql existují, takže tohle je skutečná
+                // chyba — musí být vidět, jinak by aplikace padala na
+                // chybějícím sloupci a nikdo by nevěděl proč
+                $done[] = "$table.$column se nepodařilo přidat: " . $e2->getMessage();
             }
         }
     }
