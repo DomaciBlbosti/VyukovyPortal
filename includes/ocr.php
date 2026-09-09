@@ -53,13 +53,13 @@ function ocrSchemaReady(): bool {
 // ── Alba ──
 
 /** Založí album a vrátí jeho ID; 0 při selhání */
-function createOcrJob(string $title, string $note, int $userId, string $provider = ''): int {
+function createOcrJob(string $title, string $note, int $userId): int {
     try {
         $now = date('Y-m-d H:i:s');
         $db  = getDB();
         $db->prepare('INSERT INTO ocr_jobs (title, note, provider, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?)')
            ->execute([mb_substr($title, 0, 120), mb_substr($note, 0, 255),
-                      isset(LLM_PROVIDERS[$provider]) ? $provider : '', $userId ?: null, $now, $now]);
+                      '', $userId ?: null, $now, $now]);
         return (int)$db->lastInsertId();
     } catch (PDOException $e) {
         ocrFail($e);
@@ -254,12 +254,14 @@ function saveOcrPageText(int $pageId, string $text): bool {
  * Každá stránka dostane nový běh; kdyby už nějaký čekal, nepřidá se další.
  * Vrací značku dávky, podle které se prohlížeč ptá na postup.
  *
- * @param array{provider?:string, model?:string, prompt_key?:string, prompt?:string} $opts
+ * @param array{model?:string, prompt_key?:string, prompt?:string} $opts
  */
 function queueOcrRuns(array $pageIds, array $opts): string {
     $batch    = date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 6);
-    $provider = llmProvider((string)($opts['provider'] ?? ''));
-    $model    = trim((string)($opts['model'] ?? '')) ?: llmModel($provider, 'vision');
+    $model = trim((string)($opts['model'] ?? '')) ?: llmModel('vision');
+    // U běhu si pamatujeme, kdo model provozuje — ať je i za měsíc vidět,
+    // jestli fotka stránky opustila domácí síť
+    $provider = modelProvider($model);
     $key      = (string)($opts['prompt_key'] ?? ocrDefaultPromptKey());
     $prompt   = ocrPromptText($key, (string)($opts['prompt'] ?? ''));
     $now      = date('Y-m-d H:i:s');
@@ -341,7 +343,6 @@ function processNextOcrRun(string $batch = ''): array {
 
     $started = microtime(true);
     $res     = llmOcrPage((string)$page['image_b64'], [
-        'provider'   => (string)$run['provider'],
         'model'      => (string)$run['model'],
         'prompt'     => (string)$run['prompt'],
         'prompt_key' => (string)$run['prompt_key'],

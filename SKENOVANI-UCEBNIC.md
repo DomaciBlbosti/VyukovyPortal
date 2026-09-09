@@ -3,9 +3,9 @@
 Vyfotíš stránky učebnice telefonem, nahraješ je do adminu a model z nich
 udělá sadu na procvičování.
 
-Číst je může buď **Ollama u tebe doma** (nic neodchází), nebo **komerční API**
-(přesnější přepis, ale fotky opustí domácí síť). Vybírá se v nastavení a dá se
-změnit u každého spuštění.
+Všechno jde přes **Ollama Proxy** — jednu adresu, jeden klíč. Jestli stránku
+přečte model na tvé kartě, nebo komerční API, rozhoduje jen jeho **název**;
+klíče k poskytovatelům drží proxy, aplikace je nikdy nevidí.
 
 ## Čtyři záložky
 
@@ -16,7 +16,7 @@ Admin → 🔍 Skenování učebnic má čtyři části, každou na vlastní str
 | 🖼️ **Galerie** | alba fotek: nahrát, přesunout mezi alby, přeřadit, smazat |
 | 🔍 **Přepis (OCR)** | vybrat fotky z alba, model a zadání, pustit; u každé fotky historie běhů |
 | 🧩 **Tvorba sad** | z přepsaného textu složit JSON sady a předat ho do importu |
-| ⚙️ **Modely a zadání** | Ollama, komerční API, velikost kontextu, výchozí zadání a sada zadání k vyzkoušení |
+| ⚙️ **Modely a zadání** | adresa a klíč proxy, modely, velikost kontextu, výchozí zadání a sada zadání k vyzkoušení |
 
 Fotka se nahrává jednou a přepisovat se dá kolikrát chceš — každé spuštění
 je **běh** a stránka si je pamatuje všechny. Stejný obrázek tak jde zkusit
@@ -164,13 +164,31 @@ Typ sady vybírej podle toho, co je na stránkách:
 | doplnovacka | věty s vynechaným slovem |
 | cteni | souvislý text a otázky k němu |
 
-**Na skládání sady patří obecný model** (gemma4, qwen3), ne specializovaný
-OCR model — ten JSON nesloží. Když je v nastavení jako textový model něco
-s „ocr" v názvu, aplikace na to upozorní červeně.
+**Na skládání sady patří obecný model** (gemma4, qwen3, gpt-4o-mini), ne
+specializovaný OCR model — ten JSON nesloží. Když je v nastavení jako textový
+model něco s „ocr" v názvu, aplikace na to upozorní červeně. U jednotlivého
+sestavení si můžeš vybrat jiný model, než je ten výchozí.
 
-## Ollama, nebo komerční API?
+## Přes co to jde: Ollama Proxy
 
-|  | Ollama | Komerční API |
+Aplikace zná jedinou adresu a na ni posílá úplně všechno — přepis stránek
+i skládání sad. Prokazuje se svým klíčem:
+
+```
+Authorization: Bearer opx_…
+```
+
+Klíč vytvoříš ve správě proxy a nastavíš mu tam, které modely smí. V aplikaci
+ho vyplníš v *Modely a zadání*; do stránky se nikdy nevypisuje celý, jen
+zamaskovaně. Prázdné pole při ukládání znamená „nech ho být", ne „smaž ho" —
+na smazání je zvlášť zaškrtávátko.
+
+### Lokální, nebo komerční model?
+
+Nevybíráš poskytovatele, vybíráš **model**. V seznamu jsou obojí a proxy podle
+názvu pozná, kam požadavek poslat.
+
+|  | Model u tebe doma | Komerční model |
 |---|---|---|
 | Fotky učebnice | zůstanou doma | odejdou ven |
 | Přesnost přepisu | slabší, hlavně diakritika | výrazně lepší |
@@ -178,87 +196,61 @@ s „ocr" v názvu, aplikace na to upozorní červeně.
 | Cena | proud | řádově haléře za stránku |
 | Kontext | musíš hlídat (viz níž) | v praxi neomezený |
 
-Nemusíš volit jednou provždy. Rozumné je jet na Ollamě a sáhnout po API u
-stránky, kterou lokální model nezvládl — v detailu stránky dáš *Spustit
-znovu* a v seznamu modelů vybereš ten z API.
+Nemusíš volit jednou provždy. Rozumné je jet na lokálním modelu a u stránky,
+kterou nezvládl, sáhnout v detailu po *Spustit znovu* s komerčním.
 
-**Rozhraní OpenAI umí i OpenRouter, Groq a další** — stačí přepsat adresu,
-žádná další úprava kódu není potřeba.
+U každého běhu je v historii vidět, čím se četlo: 🏠 doma, ☁️ komerčně
+i s názvem poskytovatele. Za měsíc tak poznáš, jestli ta stránka opustila
+domácí síť.
 
-### API klíč
+Když aplikace klíč nemá, uvidí jen lokální modely. Komerční se v seznamu
+objeví, až klíč vyplníš.
 
-Vyplníš ho v nastavení; ukládá se do databáze a **do stránky se nikdy nevypisuje
-celý**, jen zamaskovaně (`sk-…a1b2`). Prázdné pole při ukládání znamená „nech
-ho být", ne „smaž ho" — na smazání je zvlášť zaškrtávátko.
-
-## Co potřebuješ pro Ollamu
-
-### Ollama vedle aplikace
-
-Na TrueNASu ji nainstaluj jako samostatnou aplikaci z katalogu. Aplikace se
-na ni pak dostane přes jméno kontejneru, typicky `http://ollama:11434`.
-Když ji máš na jiném stroji v síti, použij jeho IP: `http://192.168.1.10:11434`.
-
-Ollama musí být ze sítě dostupná — ve výchozím nastavení poslouchá jen na
-`127.0.0.1`. V proměnných prostředí nastav:
-
-```
-OLLAMA_HOST=0.0.0.0
-```
-
-### Dva modely
+### Modely na kartě
 
 ```bash
 ollama pull deepseek-ocr        # čtení obrázků, ~6.7 GB (potřebuje Ollamu 0.13+)
-ollama pull qwen2.5             # sestavení sady, ~5 GB
+ollama pull qwen3               # sestavení sady
 ```
 
-Na čtení jde místo `deepseek-ocr` použít i obecný vision model
-(`gemma3:12b`, `qwen2.5vl`, `minicpm-v`) — jen mu dej jiné zadání, viz výš.
+Na čtení jde použít i obecný vision model (`gemma4:12b`, `qwen3-vl:8b`,
+`minicpm-v`) — jen mu dej jiné zadání, viz výš.
 
-**Když máš málo paměti na kartě, dej do obou polí tentýž obecný model.** Dva
-různé se na 12 GB nevejdou současně a Ollama by je mezi krokem „přepis" a
-„sestavení" pořád přenačítala. Gemma 3 od velikosti 4B nahoru umí obrázky
-i text, takže pokryje obojí sama. Aplikace si u každého volání říká
-o `keep_alive` 30 minut, takže model mezi stránkami nevypadne z karty
-a nenačítá se znovu; `OLLAMA_KEEP_ALIVE` nastavovat nemusíš.
-
-Aplikace se před přepisem u Ollamy zeptá, jestli model umí obrázky
-(`/api/show`), a textovému modelu fotku vůbec nepošle — řekne to rovnou.
+**Když máš málo paměti na kartě, dej do obou polí tentýž lokální model.** Dva
+různé se na 12 GB nevejdou současně a přenačítaly by se mezi krokem „přepis"
+a „sestavení". Aplikace si u každého volání říká o `keep_alive` 30 minut,
+takže model mezi stránkami z karty nevypadne.
 
 **Uvažovací modely se na přepis nehodí.** Myšlenkový postup jim spolyká celý
-kontext a k samotnému přepisu se nedostanou — vypadá to jako by model po pár
+kontext a k samotnému přepisu se nedostanou — vypadá to, jako by model po pár
 minutách vrátil prázdno. Aplikace uvažování vypíná (`think: false`), ale ne
-každý model to respektuje; když to na takový narazíš, řekne ti to a poradí
+každý model to respektuje; když na takový narazíš, řekne ti to a poradí
 sáhnout po jiném.
 
-Na čtení obrázků jde použít i `minicpm-v` nebo `qwen2.5vl`. **Počítej s tím,
-že tohle je slabé místo celého řetězu** — malé vision modely dělají v české
-diakritice chyby a rozvržení stránky (sloupce, tabulky, číslování cvičení)
-jim dělá potíže. Proto ta ruční kontrola mezi kroky.
-
-Bez grafické karty to poběží, ale pomalu — klidně minuty na stránku. S GPU
-jsou to jednotky sekund.
+Aplikace se navíc před přepisem zeptá, jestli model umí obrázky, a textovému
+modelu fotku vůbec nepošle. U komerčních modelů se ptát nemá koho, ty proxy
+jen přeposílá.
 
 ## Nastavení v aplikaci
 
-**Admin → 🔍 Skenování učebnic → ⚙️ Modely a zadání** — vyber výchozího
-poskytovatele a vyplň, co k němu patří. Jakmile spojení funguje, aplikace si
-sama načte seznam dostupných modelů a nabídne ho v rozbalovacím seznamu.
+**Admin → 🔍 Skenování učebnic → ⚙️ Modely a zadání** — vyplň adresu proxy
+a klíč. Jakmile spojení funguje, aplikace si sama načte seznam modelů
+a nabídne ho v rozbalovacím seznamu, rozdělený na domácí a komerční.
 
-### Velikost kontextu (jen Ollama)
+### Velikost kontextu
 
-Ollama má ve výchozím stavu jen pár tisíc tokenů kontextu a **co se nevejde,
-tiše zahodí** — u sady sestavené z několika stránek by pak potichu chyběla
-poslední slovíčka. Aplikace si proto kontext říká sama; nastavuje se ve stejném
-formuláři jako modely a výchozí hodnota je 8192.
+Týká se modelů běžících doma. Ollama má ve výchozím stavu jen pár tisíc
+tokenů kontextu a **co se nevejde, tiše zahodí** — u sady sestavené
+z několika stránek by pak potichu chyběla poslední slovíčka. Aplikace si
+proto kontext říká sama; nastavuje se ve stejném formuláři jako modely
+a výchozí hodnota je 8192.
 
 Větší kontext zabere víc paměti na kartě. Na 12 GB je 8192 rozumný začátek;
 když máš dávky delší, zvyš ho a sleduj, jestli se model ještě vejde do VRAM.
 
-Pod textem v *Tvorbě sad* je vždycky vidět odhad, kolik tokenů zabírá a
-kolik je nastaveno — a když se to nemá šanci vejít, aplikace to řekne dřív,
-než dáš *Sestavit JSON*.
+Pod textem v *Tvorbě sad* je vždycky vidět odhad, kolik tokenů zabírá a kolik
+je nastaveno — a když se to nemá šanci vejít, aplikace to řekne dřív, než dáš
+*Sestavit JSON*. U komerčního modelu se na to nedá narazit, takže mlčí.
 
 ## Poznámka k autorským právům
 
