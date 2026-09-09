@@ -364,7 +364,44 @@ function mergeBlanksIntoBlocks(array $blocks, string $freeText): array {
         $prevKey = $key;
     }
     $blocks = array_values(array_filter($blocks, fn($b) => $b['text'] !== '' || ocrBlockIsImage($b['kind'])));
-    return ['blocks' => $blocks, 'matched' => $matched, 'total' => $total, 'leftover' => count($rest)];
+    return ['blocks' => splitBlocksAtExerciseHeaders($blocks), 'matched' => $matched,
+            'total' => $total, 'leftover' => count($rest)];
+}
+
+/**
+ * Je řádek začátkem cvičení? Pracovní sešit je čísluje „**1**", „### 2"
+ * nebo „3 **Listen…"; učebnice občas píše „Cvičení 4".
+ */
+function isExerciseHeader(string $line): bool {
+    $line = trim($line);
+    return (bool)(preg_match('/^(\*\*\d{1,2}\*\*|\d{1,2}\s+\*\*|#{1,6}\s*\d{1,2}\s*$)/u', $line)
+                || preg_match('/^(cvičení|exercise|úloha|úkol)\s*\d/iu', $line));
+}
+
+/**
+ * Rozdělí bloky tak, aby nadpis cvičení vždycky stál na začátku bloku.
+ *
+ * Po spojení dvou přepisů se před nadpis může dostat poslední řádek
+ * předchozího cvičení („7. ______" a hned pod tím „### 3"). Skupiny se pak
+ * slijí do jedné a v tvorbě sad chybí cvičení k výběru.
+ */
+function splitBlocksAtExerciseHeaders(array $blocks): array {
+    $out = [];
+    foreach ($blocks as $b) {
+        $lines = explode("\n", $b['text']);
+        if (ocrBlockIsImage($b['kind']) || count($lines) < 2) { $out[] = $b; continue; }
+
+        $chunk = [];
+        foreach ($lines as $i => $line) {
+            if ($i > 0 && $chunk && isExerciseHeader($line)) {
+                $out[] = ['kind' => $b['kind'], 'box' => $b['box'], 'text' => trim(implode("\n", $chunk))];
+                $chunk = [];
+            }
+            $chunk[] = $line;
+        }
+        if ($chunk) $out[] = ['kind' => $b['kind'], 'box' => $b['box'], 'text' => trim(implode("\n", $chunk))];
+    }
+    return array_values(array_filter($out, fn($b) => $b['text'] !== '' || ocrBlockIsImage($b['kind'])));
 }
 
 /**
@@ -381,9 +418,9 @@ function groupOcrBlocks(array $blocks): array {
     $open   = null;
     foreach ($blocks as $i => $b) {
         $isTitle  = $b['kind'] === 'title' && preg_match('/[\p{L}\p{N}]/u', $b['text']);
-        // „**1** Complete…", „3 **Listen…", nebo nadpis „### 1" s textem na dalším řádku
-        $isHeader = preg_match('/^(\*\*\d{1,2}\*\*|\d{1,2}\s+\*\*|#{1,6}\s*\d{1,2}\s*(\n|$))/u', $b['text'])
-                 || preg_match('/^(cvičení|exercise|úloha|úkol)\s*\d/iu', $b['text']);
+        // Rozhoduje první řádek bloku — o to, aby tam nadpis opravdu stál,
+        // se postaralo splitBlocksAtExerciseHeaders()
+        $isHeader = isExerciseHeader(strtok($b['text'], "\n") ?: '');
         // Nadpis lekce zůstává s cvičením, které po něm následuje —
         // samostatná skupina jen s nadpisem by byla k ničemu
         $onlyTitles = $open !== null && !array_filter($groups[$open]['blocks'], fn($j) => $blocks[$j]['kind'] !== 'title');

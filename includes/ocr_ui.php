@@ -91,6 +91,40 @@ function promptPresetsJson(): string {
     return json_encode($out, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
 }
 
+/** Rozbalovací seznam předmětů; prázdná hodnota = zatím nezařazeno */
+function subjectSelect(string $name, string $current): void { ?>
+    <select id="<?= $name ?>" name="<?= $name ?>" class="form-input">
+        <option value="">— nezařazeno —</option>
+        <?php foreach (SET_SUBJECTS as $key => $s): ?>
+        <option value="<?= $key ?>" <?= $key === $current ? 'selected' : '' ?>><?= htmlspecialchars($s['icon'] . ' ' . $s['label']) ?></option>
+        <?php endforeach; ?>
+    </select>
+<?php }
+
+/** Rozbalovací seznam ročníků; 0 = pro všechny */
+function gradeSelect(string $name, int $current): void { ?>
+    <select id="<?= $name ?>" name="<?= $name ?>" class="form-input">
+        <option value="0">pro všechny</option>
+        <?php for ($g = 1; $g <= 9; $g++): ?>
+        <option value="<?= $g ?>" <?= $g === $current ? 'selected' : '' ?>><?= $g ?>. třída</option>
+        <?php endfor; ?>
+    </select>
+<?php }
+
+/**
+ * Rozdělí alba do skupin podle předmětu a ročníku.
+ * Učebnice i pracovní sešit téhož předmětu tak stojí vedle sebe.
+ */
+function groupAlbumsBySubject(array $albums): array {
+    $groups = [];
+    foreach ($albums as $a) {
+        $groups[subjectGradeLabel((string)$a['subject'], (int)$a['grade'])][] = $a;
+    }
+    // Nezařazená alba patří na konec, ať nepřekáží
+    uksort($groups, fn($x, $y) => (str_starts_with($x, '📂') <=> str_starts_with($y, '📂')) ?: strcoll($x, $y));
+    return $groups;
+}
+
 /** Náhled stránky do tabulek a mřížek */
 function pageThumb(array $page, string $class = 'ocr-thumb'): string {
     $src = !empty($page['thumb_b64'])

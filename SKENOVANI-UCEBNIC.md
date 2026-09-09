@@ -13,7 +13,7 @@ Admin → 🔍 Skenování učebnic má čtyři části, každou na vlastní str
 
 | Záložka | Co se tam dělá |
 |---|---|
-| 🖼️ **Galerie** | alba fotek: nahrát, přesunout mezi alby, přeřadit, smazat |
+| 🖼️ **Galerie** | podklady po předmětech a ročnících: nahrát, přesunout mezi alby, přeřadit, smazat |
 | 🔍 **Přepis (OCR)** | vybrat fotky z alba, model a zadání, pustit; u každé fotky historie běhů |
 | 🧩 **Tvorba sad** | z přepsaného textu složit JSON sady a předat ho do importu |
 | ⚙️ **Modely a zadání** | adresa a klíč proxy, modely, velikost kontextu, výchozí zadání a sada zadání k vyzkoušení |
@@ -40,7 +40,18 @@ ručně vložená sada. Když model vyrobí duplicitu nebo zapomene odpověď,
 
 ## Galerie
 
-Založ album (typicky jedna lekce), nahraj do něj fotky. Prohlížeč je před
+Album je **podklad k jednomu předmětu a ročníku**: „🇬🇧 Angličtina · 6. třída
+— Project 1, pracovní sešit". Učebnice a pracovní sešit dej jako dvě alba
+téhož předmětu; předmětů i ročníků může mít album kolik chceš vedle sebe
+a v seznamu se seskupí pod společný nadpis.
+
+Proč to stojí za vyplnění: sady z alba předmět a ročník **zdědí**, takže je
+už nepíšeš znovu, a u každé sady je odkaz zpátky na podklad — je vidět,
+z čeho otázky čerpají. V albu naopak vidíš seznam sad, které z něj vznikly.
+Nezařazená alba se ukážou dole pod „📂 Bez předmětu"; zařadit je jde kdykoli
+později v hlavičce alba.
+
+Založ album, nahraj do něj fotky. Prohlížeč je před
 odesláním zmenší (delší strana 1600 px) a udělá náhled, takže fotky z telefonu
 vadit nebudou. Fotky jdou mezi alby přesouvat, řadit šipkami a mazat; smazání
 alba smaže i fotky a všechny jejich přepisy. Sady, které z alba vznikly, to
@@ -150,7 +161,8 @@ Výchozí zadání i model se dají u každého spuštění změnit.
 ## Tvorba sad
 
 Vyber album, zaškrtni stránky a dej *Načíst text ze stránek*. Text můžeš
-ještě upravit (uloží se k albu). Vyplň název, zdroj, předmět, typ a ročník,
+ještě upravit (uloží se k albu). Předmět a ročník jsou předvyplněné z alba,
+takže zbývá název, zdroj a typ;
 vyber, kdo skládá (Ollama, nebo API), a dej *Sestavit JSON*. Aplikace ukáže
 výsledek i s případnými chybami; JSON si můžeš rovnou upravit a pak ho pošleš
 přes *Otevřít v importu sad* do finální kontroly a uložení.

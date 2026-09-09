@@ -61,14 +61,16 @@ $message = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     switch ($_POST['action'] ?? '') {
         case 'create_album':
-            $id = createOcrJob((string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''), (int)$user['id']);
+            $id = createOcrJob((string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''), (int)$user['id'],
+                               (string)($_POST['subject'] ?? ''), (int)($_POST['grade'] ?? 0));
             if ($id) { header('Location: ' . BASE_URL . '/admin/galerie.php?album=' . $id); exit; }
             $error = 'Album se nepodařilo založit.';
             break;
 
         case 'rename_album':
-            $message = renameOcrJob((int)($_POST['album_id'] ?? 0), (string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''))
-                ? 'Album přejmenováno.' : 'Album se nepodařilo přejmenovat.';
+            $message = renameOcrJob((int)($_POST['album_id'] ?? 0), (string)($_POST['title'] ?? ''), (string)($_POST['note'] ?? ''),
+                                    (string)($_POST['subject'] ?? ''), (int)($_POST['grade'] ?? 0))
+                ? 'Album uloženo.' : 'Album se nepodařilo uložit.';
             break;
 
         case 'delete_album':
@@ -121,7 +123,10 @@ include __DIR__ . '/../includes/header.php';
 <?php if ($album): ?>
 <section class="admin-card">
     <div class="challenge-head">
-        <h2 class="section-title" style="margin:0"><?= htmlspecialchars($album['title'] ?: 'Album #' . $albumId) ?></h2>
+        <h2 class="section-title" style="margin:0">
+            <?= htmlspecialchars($album['title'] ?: 'Album #' . $albumId) ?>
+            <span class="mistake-hint" style="font-weight:normal"><?= htmlspecialchars(subjectGradeLabel((string)$album['subject'], (int)$album['grade'])) ?></span>
+        </h2>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
             <a href="<?= BASE_URL ?>/admin/ocr.php?album=<?= $albumId ?>" class="btn-primary btn-sm">🔍 Přepsat →</a>
             <a href="<?= BASE_URL ?>/admin/galerie.php" class="btn-secondary btn-sm">← všechna alba</a>
@@ -139,7 +144,15 @@ include __DIR__ . '/../includes/header.php';
             <label for="note">Poznámka</label>
             <input type="text" id="note" name="note" class="form-input" value="<?= htmlspecialchars($album['note']) ?>">
         </div>
-        <button type="submit" class="btn-secondary">Přejmenovat</button>
+        <div class="form-group" style="margin:0">
+            <label for="subject">Předmět</label>
+            <?php subjectSelect('subject', (string)$album['subject']); ?>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label for="grade">Ročník</label>
+            <?php gradeSelect('grade', (int)$album['grade']); ?>
+        </div>
+        <button type="submit" class="btn-secondary">Uložit</button>
     </form>
 </section>
 
@@ -206,6 +219,18 @@ include __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 </section>
 
+<?php $albumSets = setsFromJob($albumId); if ($albumSets): ?>
+<section class="admin-card">
+    <h2 class="section-title">Sady z tohohle podkladu (<?= count($albumSets) ?>)</h2>
+    <ul style="margin:0 0 0 1.1rem">
+        <?php foreach ($albumSets as $st): ?>
+        <li><a href="<?= BASE_URL ?>/games/sada.php?id=<?= (int)$st['id'] ?>"><?= htmlspecialchars($st['title']) ?></a>
+            <span class="mistake-hint">· <?= htmlspecialchars(SET_KINDS[$st['kind']] ?? $st['kind']) ?></span></li>
+        <?php endforeach; ?>
+    </ul>
+</section>
+<?php endif; ?>
+
 <section class="admin-card">
     <form method="post" onsubmit="return confirm('Smazat celé album i s fotkami a přepisy?')">
         <input type="hidden" name="action" value="delete_album">
@@ -223,10 +248,19 @@ include __DIR__ . '/../includes/header.php';
         <div class="form-group" style="margin:0">
             <label for="title">Název</label>
             <input type="text" id="title" name="title" class="form-input" placeholder="Project 1 — Unit 3" required>
+            <p class="mistake-hint">Učebnice a pracovní sešit dej jako dvě alba téhož předmětu a ročníku.</p>
         </div>
         <div class="form-group" style="margin:0">
             <label for="note">Poznámka</label>
             <input type="text" id="note" name="note" class="form-input" placeholder="slovíčka ze strany 34–35">
+        </div>
+        <div class="form-group" style="margin:0">
+            <label for="subject">Předmět</label>
+            <?php subjectSelect('subject', ''); ?>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label for="grade">Ročník</label>
+            <?php gradeSelect('grade', 0); ?>
         </div>
         <button type="submit" class="btn-primary">Založit a nahrát fotky →</button>
     </form>
@@ -237,17 +271,19 @@ include __DIR__ . '/../includes/header.php';
     <?php if (!$albums): ?>
     <p class="mistake-hint">Zatím žádné album.</p>
     <?php else: ?>
+    <?php foreach (groupAlbumsBySubject($albums) as $label => $group): ?>
+    <h3 class="section-title" style="font-size:1rem;margin-top:1.25rem"><?= htmlspecialchars($label) ?></h3>
     <table class="data-table">
-        <thead><tr><th>Album</th><th>Fotek</th><th>Přepsáno</th><th>Místo</th><th>Založeno</th><th></th></tr></thead>
+        <thead><tr><th>Album</th><th>Fotek</th><th>Přepsáno</th><th>Sad</th><th>Místo</th><th></th></tr></thead>
         <tbody>
-        <?php foreach ($albums as $a): ?>
+        <?php foreach ($group as $a): ?>
             <tr>
                 <td><a href="?album=<?= (int)$a['id'] ?>"><?= htmlspecialchars($a['title'] ?: 'Album #' . (int)$a['id']) ?></a>
                     <?php if ($a['note']): ?><br><span class="mistake-hint"><?= htmlspecialchars($a['note']) ?></span><?php endif; ?></td>
                 <td><?= (int)$a['page_count'] ?></td>
                 <td><?= (int)$a['done_count'] ?>/<?= (int)$a['page_count'] ?></td>
+                <td><?= (int)$a['set_count'] ?: '–' ?></td>
                 <td style="font-size:.8rem"><?= number_format((int)$a['bytes'] * 3 / 4 / 1048576, 1, ',', ' ') ?> MB</td>
-                <td style="color:var(--muted);font-size:.8rem"><?= htmlspecialchars((string)$a['created_at']) ?></td>
                 <td style="display:flex;gap:.4rem">
                     <a href="?album=<?= (int)$a['id'] ?>" class="btn-sm btn-sm-blue">Otevřít</a>
                     <a href="<?= BASE_URL ?>/admin/ocr.php?album=<?= (int)$a['id'] ?>" class="btn-sm btn-sm-green">Přepsat</a>
@@ -256,6 +292,7 @@ include __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
         </tbody>
     </table>
+    <?php endforeach; ?>
     <?php endif; ?>
 </section>
 <?php endif; ?>

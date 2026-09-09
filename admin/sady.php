@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../includes/sets.php';
+require_once __DIR__ . '/../includes/ocr.php';
 
 $user    = getCurrentUser();
 $message = $error = '';
@@ -25,13 +26,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } elseif ($action === 'check' || $action === 'save') {
         $rawJson = (string)($_POST['json'] ?? '');
+        // Odkud sada pochází — přenáší se z tvorby sad přes náhled až k uložení
+        $jobId   = (int)($_POST['job_id'] ?? 0);
         $parsed  = parseSetPayload($rawJson);
 
         if ($parsed['errors']) {
             $error   = 'Sada se nedá uložit — oprav tohle:';
             $preview = $parsed;
         } elseif ($action === 'save') {
-            $id = saveSet($parsed['set'], $parsed['items'], (int)$user['id']);
+            $id = saveSet($parsed['set'], $parsed['items'], (int)$user['id'], $jobId);
             if ($id) {
                 $message = 'Uloženo: ' . $parsed['set']['title'] . ' (' . count($parsed['items']) . ' položek).';
                 $rawJson = '';
@@ -109,7 +112,13 @@ include __DIR__ . '/../includes/header.php';
         <form method="post" style="margin-top:1rem">
             <input type="hidden" name="action" value="save">
             <input type="hidden" name="json" value="<?= htmlspecialchars($rawJson) ?>">
+            <input type="hidden" name="job_id" value="<?= (int)($jobId ?? 0) ?>">
             <button type="submit" class="btn-primary">✔ Uložit sadu</button>
+            <?php if (!empty($jobId) && ($srcAlbum = getOcrJob($jobId))): ?>
+            <span class="mistake-hint" style="margin-left:.75rem">
+                podklad: <?= htmlspecialchars($srcAlbum['title'] ?: 'album #' . $jobId) ?>
+            </span>
+            <?php endif; ?>
         </form>
     </div>
 </section>
@@ -174,7 +183,7 @@ include __DIR__ . '/../includes/header.php';
     <p class="mistake-hint">Zatím žádná sada.</p>
     <?php else: ?>
     <table class="data-table">
-        <thead><tr><th>Předmět</th><th>Název</th><th>Typ</th><th>Ročník</th><th>Položek</th><th>Zdroj</th><th></th></tr></thead>
+        <thead><tr><th>Předmět</th><th>Název</th><th>Typ</th><th>Ročník</th><th>Položek</th><th>Zdroj</th><th>Podklady</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($sets as $s): ?>
             <tr>
@@ -184,6 +193,11 @@ include __DIR__ . '/../includes/header.php';
                 <td><?= (int)$s['grade'] ?: '–' ?></td>
                 <td><?= (int)$s['item_count'] ?></td>
                 <td style="color:var(--muted);font-size:.8rem"><?= htmlspecialchars($s['source']) ?></td>
+                <td style="font-size:.8rem">
+                    <?php if (!empty($s['job_id'])): ?>
+                    <a href="<?= BASE_URL ?>/admin/galerie.php?album=<?= (int)$s['job_id'] ?>">otevřít</a>
+                    <?php else: ?><span style="color:var(--muted)">–</span><?php endif; ?>
+                </td>
                 <td>
                     <form method="post" onsubmit="return confirm('Opravdu smazat sadu <?= htmlspecialchars($s['title'], ENT_QUOTES) ?>?')">
                         <input type="hidden" name="action" value="delete">

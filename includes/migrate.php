@@ -76,6 +76,9 @@ function runMigrations(PDO $db): array {
         ['ocr_jobs',  'built_error', "ALTER TABLE ocr_jobs ADD COLUMN built_error VARCHAR(255) NOT NULL DEFAULT ''"],
         ['ocr_jobs',  'building',    'ALTER TABLE ocr_jobs ADD COLUMN building TINYINT(1) NOT NULL DEFAULT 0'],
         ['ocr_pages', 'thumb_b64',   'ALTER TABLE ocr_pages ADD COLUMN thumb_b64 MEDIUMTEXT NULL'],
+        ['ocr_jobs',  'subject',     "ALTER TABLE ocr_jobs ADD COLUMN subject VARCHAR(40) NOT NULL DEFAULT ''"],
+        ['ocr_jobs',  'grade',       'ALTER TABLE ocr_jobs ADD COLUMN grade TINYINT NOT NULL DEFAULT 0'],
+        ['custom_sets', 'job_id',    'ALTER TABLE custom_sets ADD COLUMN job_id INT NULL'],
     ] as [$table, $column, $sql]) {
         try {
             $db->query("SELECT $column FROM $table LIMIT 1");

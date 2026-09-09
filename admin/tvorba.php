@@ -93,7 +93,10 @@ include __DIR__ . '/../includes/header.php';
 <?php if ($album): ?>
 <section class="admin-card">
     <div class="challenge-head">
-        <h2 class="section-title" style="margin:0"><?= htmlspecialchars($album['title'] ?: 'Album #' . $albumId) ?></h2>
+        <h2 class="section-title" style="margin:0">
+            <?= htmlspecialchars($album['title'] ?: 'Album #' . $albumId) ?>
+            <span class="mistake-hint" style="font-weight:normal"><?= htmlspecialchars(subjectGradeLabel((string)$album['subject'], (int)$album['grade'])) ?></span>
+        </h2>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
             <a href="<?= BASE_URL ?>/admin/ocr.php?album=<?= $albumId ?>" class="btn-secondary btn-sm">← přepis</a>
             <a href="<?= BASE_URL ?>/admin/tvorba.php" class="btn-secondary btn-sm">jiné album</a>
@@ -170,9 +173,10 @@ include __DIR__ . '/../includes/header.php';
             <label for="subject">Předmět</label>
             <select id="subject" class="form-input">
                 <?php foreach (SET_SUBJECTS as $key => $s): ?>
-                <option value="<?= $key ?>"><?= htmlspecialchars($s['icon'] . ' ' . $s['label']) ?></option>
+                <option value="<?= $key ?>" <?= $key === (string)$album['subject'] ? 'selected' : '' ?>><?= htmlspecialchars($s['icon'] . ' ' . $s['label']) ?></option>
                 <?php endforeach; ?>
             </select>
+            <p class="mistake-hint">Zděděno z alba; v galerii se to dá změnit.</p>
         </div>
         <div class="form-group">
             <label for="kind">Typ sady</label>
@@ -187,7 +191,7 @@ include __DIR__ . '/../includes/header.php';
             <select id="grade" class="form-input">
                 <option value="0">pro všechny</option>
                 <?php for ($g = 1; $g <= 9; $g++): ?>
-                <option value="<?= $g ?>"><?= $g ?>. třída</option>
+                <option value="<?= $g ?>" <?= $g === (int)$album['grade'] ? 'selected' : '' ?>><?= $g ?>. třída</option>
                 <?php endfor; ?>
             </select>
         </div>
@@ -213,6 +217,7 @@ include __DIR__ . '/../includes/header.php';
         <form method="post" action="<?= BASE_URL ?>/admin/sady.php" style="margin-top:.75rem">
             <input type="hidden" name="action" value="check">
             <input type="hidden" name="json" id="handoffJson">
+            <input type="hidden" name="job_id" value="<?= $albumId ?>">
             <button type="submit" class="btn-primary">Otevřít v importu sad →</button>
         </form>
     </div>
@@ -226,18 +231,22 @@ include __DIR__ . '/../includes/header.php';
     <p class="mistake-hint">Žádné album zatím nemá přepsanou stránku —
         <a href="<?= BASE_URL ?>/admin/ocr.php">pusť nejdřív OCR</a>.</p>
     <?php else: ?>
+    <?php foreach (groupAlbumsBySubject($albums) as $label => $group): ?>
+    <h3 class="section-title" style="font-size:1rem;margin-top:1.25rem"><?= htmlspecialchars($label) ?></h3>
     <table class="data-table">
-        <thead><tr><th>Album</th><th>Přepsáno</th><th></th></tr></thead>
+        <thead><tr><th>Album</th><th>Přepsáno</th><th>Sad</th><th></th></tr></thead>
         <tbody>
-        <?php foreach ($albums as $a): ?>
+        <?php foreach ($group as $a): ?>
             <tr>
                 <td><a href="?album=<?= (int)$a['id'] ?>"><?= htmlspecialchars($a['title'] ?: 'Album #' . (int)$a['id']) ?></a></td>
                 <td><?= (int)$a['done_count'] ?>/<?= (int)$a['page_count'] ?></td>
+                <td><?= (int)$a['set_count'] ?: '–' ?></td>
                 <td><a href="?album=<?= (int)$a['id'] ?>" class="btn-sm btn-sm-blue">Otevřít</a></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
+    <?php endforeach; ?>
     <?php endif; ?>
 </section>
 <?php endif; ?>
