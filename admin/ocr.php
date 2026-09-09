@@ -209,7 +209,10 @@ include __DIR__ . '/../includes/header.php';
                 <td style="font-size:.85rem" title="<?= htmlspecialchars((string)$r['prompt']) ?>"><?= htmlspecialchars(promptLabel($r)) ?></td>
                 <td class="run-status">
                     <?= match ($r['status']) {
-                        'hotovo' => ((int)$r['chosen'] ? '★ ' : '✔ ') . mb_strlen((string)$r['text']) . ' znaků',
+                        'hotovo' => ((int)$r['chosen'] ? '★ ' : '✔ ') . mb_strlen((string)$r['text']) . ' znaků'
+                                    . ((int)$r['block_count'] ? ' · ' . (int)$r['block_count'] . ' bloků' : '')
+                                    . ((int)$r['image_count'] ? ' · 🖼 ' . (int)$r['image_count'] : '')
+                                    . (($n = preg_match_all('/_{3,}/', (string)$r['text'])) ? ' · ' . $n . '× ___' : ''),
                         'chyba'  => '✘ ' . htmlspecialchars($r['error']),
                         'bezi'   => '⏳ běží',
                         default  => '· ve frontě',
