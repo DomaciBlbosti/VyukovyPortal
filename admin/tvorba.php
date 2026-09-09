@@ -32,7 +32,7 @@ if (($_POST['ajax'] ?? '') !== '') {
             if ($text === '') { echo json_encode(['ok' => false, 'error' => 'Text je prázdný — není z čeho skládat.']); exit; }
             saveOcrText($albumId, $text);
 
-            [$provider] = splitModelPick((string)($_POST['provider'] ?? ''));
+            $model = trim((string)($_POST['model'] ?? ''));
             startBuild($albumId);
             $r = llmBuildSet($text, [
                 'subject' => (string)($_POST['subject'] ?? 'ostatni'),
@@ -40,7 +40,7 @@ if (($_POST['ajax'] ?? '') !== '') {
                 'title'   => (string)($_POST['set_title'] ?? ''),
                 'source'  => (string)($_POST['source'] ?? ''),
                 'kind'    => (string)($_POST['kind'] ?? 'dvojice'),
-            ], $provider);
+            ], $model);
 
             // Výsledek se ukládá k albu, ne jen do odpovědi — když spojení
             // mezitím spadlo, prohlížeč si ho vyzvedne dotazem na stav
@@ -74,10 +74,9 @@ $album   = $albumId ? getOcrJob($albumId) : null;
 $pages   = $album ? array_values(array_filter(ocrPages($albumId), fn($p) => pageText($p) !== '')) : [];
 $albums  = !$album ? array_filter(listOcrJobs(), fn($a) => (int)$a['done_count'] > 0) : [];
 
-$provider = llmProvider();
 $text     = $album ? ocrJobText($albumId) : '';
 $estTokens = estimateTokens($text);
-$ctxSize   = ollamaContextSize();
+$ctxSize   = proxyContextSize();
 
 $pageTitle = 'Tvorba sad';
 include __DIR__ . '/../includes/header.php';
@@ -193,13 +192,9 @@ include __DIR__ . '/../includes/header.php';
             </select>
         </div>
         <div class="form-group">
-            <label for="build_provider">Skládá</label>
-            <select id="build_provider" class="form-input">
-                <?php foreach (LLM_PROVIDERS as $key => $label): ?>
-                <option value="<?= $key ?>|" <?= $provider === $key ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <p class="mistake-hint">Textový model z nastavení: <?= htmlspecialchars(llmModel('ollama', 'text') ?: '—') ?> / <?= htmlspecialchars(llmModel('openai', 'text')) ?></p>
+            <label for="build_model">Skládá model</label>
+            <?php proxyModelPicker('build_model', llmModel('text')); ?>
+            <p class="mistake-hint">Sadu skládá textový model, ne ten na čtení obrázků.</p>
         </div>
     </div>
     <p class="mistake-hint" style="margin-bottom:1rem">

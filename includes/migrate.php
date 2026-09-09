@@ -5,6 +5,7 @@
  * aktualizaci z Gitu (admin/system.php), aby schéma vždy odpovídalo kódu.
  */
 require_once __DIR__ . '/levels.php';
+require_once __DIR__ . '/settings.php';
 
 /** Spustí všechny migrace. Vrací seznam provedených kroků. */
 function runMigrations(PDO $db): array {
@@ -165,6 +166,25 @@ function runMigrations(PDO $db): array {
         if ($runs) $done[] = 'zacyklené bloky uklizeny u běhů: ' . count($runs);
     } catch (Throwable $e) {
         $done[] = 'úklid zacyklených bloků selhal: ' . $e->getMessage();
+    }
+
+    // 11. Přechod na Ollama Proxy: jedna adresa, jeden klíč, model rozhoduje
+    //     o tom, kdo stránku přečte. Staré nastavení dvou poskytovatelů
+    //     přeneseme, ať admin nemusí nic vyplňovat znovu.
+    try {
+        foreach ([
+            'ollama_url'          => 'proxy_url',
+            'ollama_vision_model' => 'vision_model',
+            'ollama_text_model'   => 'text_model',
+            'ollama_num_ctx'      => 'num_ctx',
+        ] as $old => $new) {
+            if (getSetting($new) === '' && getSetting($old) !== '') {
+                setSetting($new, getSetting($old));
+                $done[] = "nastavení $old přeneseno do $new";
+            }
+        }
+    } catch (Throwable $e) {
+        $done[] = 'nastavení proxy se nepodařilo přenést: ' . $e->getMessage();
     }
 
     return $done;

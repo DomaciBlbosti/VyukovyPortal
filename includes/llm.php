@@ -2,19 +2,12 @@
 /**
  * Co se říká modelu — a kterému.
  *
- * Zadání je pro oba poskytovatele stejné, liší se jen přenos. Ollama běží
- * doma a nic z ní neodchází; komerční API bývá u přepisu přesnější, hlavně
- * v české diakritice, ale fotky učebnice odejdou ven. Volí se globálně
- * v nastavení a dá se přebít u každého spuštění.
+ * Zadání je pro každý model stejné a posílá se vždycky na tutéž adresu —
+ * Ollama Proxy. Jestli si ho přečte model na domácí kartě, nebo komerční
+ * API, rozhoduje jen jeho název; klíče k poskytovatelům drží proxy.
  */
 require_once __DIR__ . '/settings.php';
-require_once __DIR__ . '/ollama.php';
-require_once __DIR__ . '/openai.php';
-
-const LLM_PROVIDERS = [
-    'ollama' => 'Ollama (doma, nic neodchází)',
-    'openai' => 'Komerční API (přesnější, fotky odejdou ven)',
-];
+require_once __DIR__ . '/proxy.php';
 
 /**
  * Zadání pro přepis stránky — sada k vyzkoušení.
@@ -109,27 +102,9 @@ function ocrPromptText(string $key, string $custom = ''): string {
     return OCR_PROMPTS[$key]['prompt'];
 }
 
-/** Výchozí poskytovatel; $override je volba u konkrétního spuštění */
-function llmProvider(string $override = ''): string {
-    if (isset(LLM_PROVIDERS[$override])) return $override;
-    $p = getSetting('llm_provider', 'ollama');
-    return isset(LLM_PROVIDERS[$p]) ? $p : 'ollama';
-}
-
-/** Model pro daný krok a poskytovatele */
-function llmModel(string $provider, string $step): string {
-    $key = ($provider === 'openai' ? 'openai_' : 'ollama_') . ($step === 'vision' ? 'vision_model' : 'text_model');
-    $default = $provider === 'openai' ? 'gpt-4o-mini' : '';
-    return getSetting($key, $default);
-}
-
-/**
- * Stav poskytovatele — používá se k testu spojení i k nabídce modelů.
- *
- * @return array{ok:bool, models:array<string>, error:string}
- */
-function llmStatus(string $provider): array {
-    return $provider === 'openai' ? openaiModels() : ollamaModels();
+/** Model pro daný krok; prázdný, dokud si ho admin nevybere */
+function llmModel(string $step): string {
+    return getSetting($step === 'vision' ? 'vision_model' : 'text_model');
 }
 
 /**
@@ -459,13 +434,12 @@ function ocrTextWarning(string $text, string $prompt): string {
 /**
  * Přepíše jednu stránku.
  *
- * @param array{provider?:string, model?:string, prompt?:string} $opts
+ * @param array{model?:string, prompt?:string} $opts
  *        co není vyplněné, bere se z nastavení
  * @return array{ok:bool, text:string, blocks:array, error:string, warning:string, tokens:int}
  */
 function llmOcrPage(string $imageB64, array $opts = []): array {
-    $provider = llmProvider((string)($opts['provider'] ?? ''));
-    $model    = trim((string)($opts['model'] ?? '')) ?: llmModel($provider, 'vision');
+    $model    = trim((string)($opts['model'] ?? '')) ?: llmModel('vision');
     $prompt   = trim((string)($opts['prompt'] ?? '')) ?: ocrPromptText(ocrDefaultPromptKey());
     $key      = (string)($opts['prompt_key'] ?? '');
     $fail     = fn(string $e) => ['ok' => false, 'text' => '', 'blocks' => [], 'error' => $e, 'warning' => '', 'tokens' => 0];
@@ -473,17 +447,14 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
     if ($model === '')  return $fail('Není vybraný model pro čtení obrázků.');
     if ($prompt === '') return $fail('Zadání pro přepis je prázdné.');
 
-    if ($provider !== 'openai') {
-        // Textový model by fotku mlčky zahodil a něco si vymyslel — radši
-        // se zeptáme dopředu. Když se /api/show nepovede, jedeme dál.
-        $show = ollamaShow($model);
-        if ($show['ok'] && !$show['vision']) {
-            return $fail('Model ' . $model . ' neumí obrázky (podle Ollamy nemá schopnost „vision"). Vyber vision model.');
-        }
+    // Textový model by fotku mlčky zahodil a něco si vymyslel — radši se
+    // zeptáme dopředu. U komerčního modelu se ptát nemá koho a /api/show
+    // selže; pak jedeme dál.
+    $show = proxyShow($model);
+    if ($show['ok'] && !$show['vision']) {
+        return $fail('Model ' . $model . ' neumí obrázky (nemá schopnost „vision"). Vyber vision model.');
     }
-    $call = fn(string $p) => $provider === 'openai'
-        ? openaiVision($model, $p, $imageB64)
-        : ollamaGenerate($model, $p, $imageB64);
+    $call = fn(string $p) => proxyGenerate($model, $p, $imageB64);
 
     // Kombinované zadání: první řádek dá rámečky, druhý text s vynechávkami
     $lines = array_values(array_filter(array_map('trim', explode("\n", $prompt)), fn($l) => $l !== ''));
@@ -593,30 +564,27 @@ function buildSetPrompt(string $text, array $meta): string {
  *
  * @return array{ok:bool, json:string, error:string, warning:string}
  */
-function llmBuildSet(string $text, array $meta, string $providerOverride = ''): array {
-    $provider = llmProvider($providerOverride);
-    $model    = llmModel($provider, 'text');
+function llmBuildSet(string $text, array $meta, string $modelOverride = ''): array {
+    $model = trim($modelOverride) ?: llmModel('text');
     if ($model === '') return ['ok' => false, 'json' => '', 'error' => 'Není vybraný model pro sestavení sady.', 'warning' => ''];
 
-    // Kontext hlídáme jen u Ollamy — komerční API mají okno tak velké,
-    // že se na tenhle problém nedá narazit
+    // Kontext hlídáme jen u modelů běžících doma — komerční mají okno tak
+    // velké, že se na tenhle problém nedá narazit
     $warning = '';
-    if ($provider === 'ollama') {
+    if (modelIsLocal($model)) {
         // Model dostane zadání i text a musí se vejít i odpověď — počítáme
         // s tím, že sada bývá zhruba stejně dlouhá jako text, ze kterého vznikla
-        $ctx    = ollamaContextSize();
+        $ctx    = proxyContextSize();
         $needed = estimateTokens($text) * 2 + 500;
         if ($needed > $ctx) {
             $warning = 'Text je na nastavený kontext (' . $ctx . ' tokenů) dlouhý — odhadem je potřeba kolem '
                 . $needed . '. Konec sady může chybět. Zvyš kontext v nastavení, vyber míň stránek,'
-                . ' nebo sadu nech sestavit přes komerční API.';
+                . ' nebo sadu nech složit komerčním modelem.';
         }
     }
 
     $prompt = buildSetPrompt($text, $meta);
-    $r = $provider === 'openai'
-        ? openaiChat($model, [['role' => 'user', 'content' => $prompt]], true)
-        : ollamaGenerate($model, $prompt, null, true);
+    $r = proxyGenerate($model, $prompt, null, true);
 
     if (!$r['ok']) return ['ok' => false, 'json' => '', 'error' => $r['error'], 'warning' => $warning];
 

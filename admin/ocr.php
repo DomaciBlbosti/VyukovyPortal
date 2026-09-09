@@ -27,7 +27,7 @@ if (($_POST['ajax'] ?? '') !== '') {
             $ids = json_decode((string)($_POST['pages'] ?? '[]'), true);
             if (!is_array($ids) || !$ids) { echo json_encode(['ok' => false, 'error' => 'Nevybral jsi žádnou stránku.']); exit; }
 
-            [$provider, $model] = splitModelPick((string)($_POST['model_pick'] ?? ''));
+            $model = trim((string)($_POST['model_pick'] ?? ''));
             if ($model === '') { echo json_encode(['ok' => false, 'error' => 'Vyber model.']); exit; }
 
             $key  = (string)($_POST['prompt_key'] ?? ocrDefaultPromptKey());
@@ -38,7 +38,7 @@ if (($_POST['ajax'] ?? '') !== '') {
             $isCombo = $key === 'deepseek_combo' && substr_count(trim($text), "\n") >= 1;
             if (!isset(OCR_PROMPTS[$key]) || ($key !== 'custom' && !$isCombo && $text !== OCR_PROMPTS[$key]['prompt'])) $key = 'custom';
 
-            $batch = queueOcrRuns($ids, ['provider' => $provider, 'model' => $model, 'prompt_key' => $key, 'prompt' => $text]);
+            $batch = queueOcrRuns($ids, ['model' => $model, 'prompt_key' => $key, 'prompt' => $text]);
             echo json_encode(['ok' => true, 'batch' => $batch] + batchStatus($batch));
             exit;
 
@@ -85,7 +85,6 @@ $album   = $albumId ? getOcrJob($albumId) : null;
 $pages   = $album && !$detail ? ocrPages($albumId) : [];
 $albums  = !$album ? listOcrJobs() : [];
 
-$provider  = llmProvider();
 $promptKey = ocrDefaultPromptKey();
 
 $pageTitle = 'Přepis stránek';
@@ -185,7 +184,7 @@ include __DIR__ . '/../includes/header.php';
     </p>
     <div class="form-group">
         <label for="model_pick">Model</label>
-        <?php providerModelPicker('model_pick', $provider, llmModel($provider, 'vision')); ?>
+        <?php proxyModelPicker('model_pick', llmModel('vision')); ?>
     </div>
     <?php promptPicker($promptKey); ?>
     <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
@@ -205,7 +204,7 @@ include __DIR__ . '/../includes/header.php';
         <?php foreach ($runs as $r): ?>
             <tr data-run="<?= (int)$r['id'] ?>" <?= (int)$r['chosen'] ? 'style="background:rgba(74,222,128,.06)"' : '' ?>>
                 <td style="font-size:.8rem;color:var(--muted)"><?= htmlspecialchars((string)$r['created_at']) ?></td>
-                <td style="font-size:.85rem"><?= $r['provider'] === 'openai' ? '☁️' : '🏠' ?> <?= htmlspecialchars($r['model'] ?: '—') ?></td>
+                <td style="font-size:.85rem"><?= $r['provider'] !== '' ? '☁️' : '🏠' ?> <?= htmlspecialchars($r['model'] ?: '—') ?><?php if ($r['provider'] !== ''): ?><br><span class="mistake-hint"><?= htmlspecialchars($r['provider']) ?></span><?php endif; ?></td>
                 <td style="font-size:.85rem" title="<?= htmlspecialchars((string)$r['prompt']) ?>"><?= htmlspecialchars(promptLabel($r)) ?></td>
                 <td class="run-status">
                     <?= match ($r['status']) {
@@ -295,7 +294,7 @@ include __DIR__ . '/../includes/header.php';
     <h2 class="section-title">Čím a jak číst</h2>
     <div class="form-group">
         <label for="model_pick">Model</label>
-        <?php providerModelPicker('model_pick', $provider, llmModel($provider, 'vision')); ?>
+        <?php proxyModelPicker('model_pick', llmModel('vision')); ?>
         <p class="mistake-hint">Výchozí model a zadání se nastavují v záložce <a href="<?= BASE_URL ?>/admin/modely.php">Modely a zadání</a>.</p>
     </div>
     <?php promptPicker($promptKey); ?>

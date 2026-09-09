@@ -253,7 +253,7 @@
                 subject: document.getElementById('subject').value,
                 kind: document.getElementById('kind').value,
                 grade: document.getElementById('grade').value,
-                provider: document.getElementById('build_provider').value,
+                model: document.getElementById('build_model').value,
             };
 
             // Odpověď použijeme, když dorazí — nese navíc varování o kontextu
