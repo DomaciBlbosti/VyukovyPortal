@@ -13,6 +13,7 @@
  */
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/llm.php';
+require_once __DIR__ . '/sets.php';
 
 /** Stavy, ve kterých se na běhu ještě pracuje */
 const OCR_OPEN = ['ceka', 'bezi'];
@@ -52,13 +53,21 @@ function ocrSchemaReady(): bool {
 
 // ── Alba ──
 
-/** Založí album a vrátí jeho ID; 0 při selhání */
-function createOcrJob(string $title, string $note, int $userId): int {
+/**
+ * Založí album a vrátí jeho ID; 0 při selhání.
+ *
+ * Album je podklad k jednomu předmětu a ročníku — učebnice a pracovní sešit
+ * jsou dvě alba téhož předmětu. Sady z něj pak předmět i ročník zdědí,
+ * takže se nevyplňují znovu a je vidět, z čeho otázky čerpají.
+ */
+function createOcrJob(string $title, string $note, int $userId, string $subject = '', int $grade = 0): int {
     try {
         $now = date('Y-m-d H:i:s');
         $db  = getDB();
-        $db->prepare('INSERT INTO ocr_jobs (title, note, provider, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?)')
+        $db->prepare('INSERT INTO ocr_jobs (title, note, subject, grade, provider, created_by, created_at, updated_at)
+                      VALUES (?,?,?,?,?,?,?,?)')
            ->execute([mb_substr($title, 0, 120), mb_substr($note, 0, 255),
+                      isset(SET_SUBJECTS[$subject]) ? $subject : '', max(0, min(9, $grade)),
                       '', $userId ?: null, $now, $now]);
         return (int)$db->lastInsertId();
     } catch (PDOException $e) {
@@ -67,11 +76,13 @@ function createOcrJob(string $title, string $note, int $userId): int {
     }
 }
 
-/** Přejmenuje album */
-function renameOcrJob(int $id, string $title, string $note): bool {
+/** Přejmenuje album a nastaví, ke kterému předmětu a ročníku patří */
+function renameOcrJob(int $id, string $title, string $note, string $subject = '', int $grade = 0): bool {
     try {
-        $stmt = getDB()->prepare('UPDATE ocr_jobs SET title = ?, note = ?, updated_at = ? WHERE id = ?');
-        $stmt->execute([mb_substr($title, 0, 120), mb_substr($note, 0, 255), date('Y-m-d H:i:s'), $id]);
+        $stmt = getDB()->prepare('UPDATE ocr_jobs SET title = ?, note = ?, subject = ?, grade = ?, updated_at = ? WHERE id = ?');
+        $stmt->execute([mb_substr($title, 0, 120), mb_substr($note, 0, 255),
+                        isset(SET_SUBJECTS[$subject]) ? $subject : '', max(0, min(9, $grade)),
+                        date('Y-m-d H:i:s'), $id]);
         return $stmt->rowCount() > 0;
     } catch (PDOException $e) {
         return false;
@@ -96,8 +107,9 @@ function listOcrJobs(int $limit = 100): array {
             SELECT j.*,
                    (SELECT COUNT(*) FROM ocr_pages p WHERE p.job_id = j.id) AS page_count,
                    (SELECT COUNT(*) FROM ocr_pages p WHERE p.job_id = j.id AND p.status = ?) AS done_count,
-                   (SELECT COALESCE(SUM(LENGTH(p.image_b64)), 0) FROM ocr_pages p WHERE p.job_id = j.id) AS bytes
-            FROM ocr_jobs j ORDER BY j.id DESC LIMIT ' . max(1, $limit));
+                   (SELECT COALESCE(SUM(LENGTH(p.image_b64)), 0) FROM ocr_pages p WHERE p.job_id = j.id) AS bytes,
+                   (SELECT COUNT(*) FROM custom_sets c WHERE c.job_id = j.id) AS set_count
+            FROM ocr_jobs j ORDER BY j.subject ASC, j.grade ASC, j.id DESC LIMIT ' . max(1, $limit));
         $stmt->execute(['hotovo']);
         return $stmt->fetchAll();
     } catch (PDOException $e) {

@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS challenge_progress (
 
 CREATE TABLE IF NOT EXISTS custom_sets (
     id         INT          AUTO_INCREMENT PRIMARY KEY,
+    job_id     INT          NULL,
     subject    VARCHAR(40)  NOT NULL DEFAULT 'ostatni',
     grade      TINYINT      NOT NULL DEFAULT 0,
     title      VARCHAR(120) NOT NULL,
@@ -153,6 +154,8 @@ CREATE TABLE IF NOT EXISTS ocr_jobs (
     id         INT          AUTO_INCREMENT PRIMARY KEY,
     title      VARCHAR(120) NOT NULL DEFAULT '',
     note       VARCHAR(255) NOT NULL DEFAULT '',
+    subject    VARCHAR(40)  NOT NULL DEFAULT '',
+    grade      TINYINT      NOT NULL DEFAULT 0,
     provider   VARCHAR(20)  NOT NULL DEFAULT '',
     edited_text MEDIUMTEXT  NULL,
     built_json  MEDIUMTEXT  NULL,

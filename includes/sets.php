@@ -166,16 +166,16 @@ function parseSetPayload(string $json): array {
 }
 
 /** Uloží ověřenou sadu. Vrací ID, nebo 0 při selhání. */
-function saveSet(array $set, array $items, int $userId): int {
+function saveSet(array $set, array $items, int $userId, int $jobId = 0): int {
     try {
         $db  = getDB();
         $now = date('Y-m-d H:i:s');
         $db->beginTransaction();
 
         $stmt = $db->prepare('INSERT INTO custom_sets
-            (subject, grade, title, source, kind, passage, created_by, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?)');
-        $stmt->execute([$set['subject'], $set['grade'], $set['title'], $set['source'],
+            (job_id, subject, grade, title, source, kind, passage, created_by, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$jobId ?: null, $set['subject'], $set['grade'], $set['title'], $set['source'],
                         $set['kind'], $set['passage'], $userId ?: null, $now, $now]);
         $id = (int)$db->lastInsertId();
 
@@ -236,6 +236,26 @@ function listSets(int $grade = 0, string $subject = ''): array {
     } catch (PDOException $e) {
         return [];
     }
+}
+
+/** Sady, které vznikly z daného alba */
+function setsFromJob(int $jobId): array {
+    try {
+        $stmt = getDB()->prepare('SELECT id, title, kind, subject, grade FROM custom_sets WHERE job_id = ? ORDER BY id DESC');
+        $stmt->execute([$jobId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Popisek „🇬🇧 Angličtina · 6. třída" — jedním pohledem je vidět,
+ * ke kterému předmětu a ročníku podklad nebo sada patří.
+ */
+function subjectGradeLabel(string $subject, int $grade): string {
+    $label = $subject === '' ? '📂 Bez předmětu' : setSubjectLabel($subject);
+    return $label . ($grade > 0 ? ' · ' . $grade . '. třída' : '');
 }
 
 /** Smaže sadu i její položky (chybovník si historii nechá — klíče jsou z obsahu) */
