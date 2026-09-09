@@ -147,9 +147,11 @@ function runMigrations(PDO $db): array {
     //     limitu) — prázdné rámečky pryč, text běhu znovu z toho, co zbylo
     try {
         require_once __DIR__ . '/ocr.php';
-        $runs = $db->query('SELECT DISTINCT run_id FROM ocr_blocks WHERE x2 <= x1 OR y2 <= y1')->fetchAll(PDO::FETCH_COLUMN);
+        //     Jen obrázky: textový blok bez rámečku (zbytek z druhého přepisu
+        //     kombinovaného zadání) má souřadnice 0,0,0,0 taky a je v pořádku
+        $runs = $db->query("SELECT DISTINCT run_id FROM ocr_blocks WHERE kind IN ('image', 'figure') AND (x2 <= x1 OR y2 <= y1)")->fetchAll(PDO::FETCH_COLUMN);
         foreach ($runs as $runId) {
-            $del = $db->prepare('DELETE FROM ocr_blocks WHERE run_id = ? AND (x2 <= x1 OR y2 <= y1)');
+            $del = $db->prepare("DELETE FROM ocr_blocks WHERE run_id = ? AND kind IN ('image', 'figure') AND (x2 <= x1 OR y2 <= y1)");
             $del->execute([$runId]);
             $blocks = array_map(fn($b) => ['kind' => $b['kind'], 'box' => null, 'text' => (string)$b['text']], runBlocks((int)$runId));
             $text   = blocksToText($blocks);
