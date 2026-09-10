@@ -61,12 +61,43 @@ include __DIR__ . '/../includes/header.php';
         <div class="alert alert-success">
             ✔ Proxy odpovídá — modelů <?= count($probe['models']) ?>
             (<?= $local ?> u tebe doma<?= $remote ? ', ' . $remote . ' komerčních' : '' ?>).
-            <?php if (!$probe['full']): ?>
+            <?php if (!$probe['full'] && proxyKey() === ''): ?>
             <br><span class="mistake-hint">Bez platného klíče vidíš jen lokální modely. Komerční se objeví, až klíč vyplníš.</span>
+            <?php elseif (!$probe['full']): ?>
+            <br><span class="mistake-hint">Správcovský seznam proxy se nepodařilo přečíst, tak je tu jen to, co běží doma.
+            Co proxy odpověděla, se dá rozbalit níž.</span>
             <?php endif; ?>
         </div>
     <?php else: ?>
         <div class="alert alert-error">✘ <?= htmlspecialchars($probe['error']) ?></div>
+    <?php endif; ?>
+
+    <?php if (!empty($probe['raw'])): ?>
+    <details style="margin:.4rem 0 1rem">
+        <summary class="mistake-hint" style="cursor:pointer">Co proxy odpověděla (když v seznamu chybí model)</summary>
+        <?php foreach ($probe['raw'] as $path => $body): ?>
+        <p class="mistake-hint" style="margin:.6rem 0 .2rem"><code><?= htmlspecialchars($path) ?></code></p>
+        <?php
+            $dump = is_array($body) ? (string)json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) : (string)$body;
+            // kdyby proxy někdy vracela i klíče, do stránky se nedostanou
+            $dump = preg_replace('/\b(opx_|sk-|sk_)[A-Za-z0-9_\-]{6,}/', '$1…', $dump);
+        ?>
+        <pre style="max-height:14rem;overflow:auto;font-size:.75rem;white-space:pre-wrap;word-break:break-all"><?= htmlspecialchars(mb_substr($dump, 0, 4000)) ?></pre>
+        <?php endforeach; ?>
+    </details>
+    <?php endif; ?>
+
+    <?php
+        $known   = array_column($probe['models'], 'name');
+        $missing = array_values(array_filter([llmModel('vision'), llmModel('text')],
+                                 fn($m) => $m !== '' && $known && !in_array($m, $known, true)));
+    ?>
+    <?php if ($missing): ?>
+    <div class="alert alert-error">
+        Proxy nezná <?= count($missing) > 1 ? 'nastavené modely' : 'nastavený model' ?>
+        <strong><?= htmlspecialchars(implode(', ', array_unique($missing))) ?></strong> —
+        přepis i sada na něm spadnou na <code>model not found</code>. Vyber níž model ze seznamu a ulož.
+    </div>
     <?php endif; ?>
 
     <?php $textModel = llmModel('text'); if (preg_match('/ocr/i', $textModel)): ?>

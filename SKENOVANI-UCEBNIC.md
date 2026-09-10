@@ -218,6 +218,20 @@ domácí síť.
 Když aplikace klíč nemá, uvidí jen lokální modely. Komerční se v seznamu
 objeví, až klíč vyplníš.
 
+### Když v seznamu model chybí
+
+Seznam se skládá ze dvou dotazů: `/api/tags` vrací modely stažené doma a klíč
+na něj netřeba, `/mgmt/v1/models` přidá modely zapnutých poskytovatelů. Když
+druhý dotaz selže nebo vrátí něco nečekaného, zůstane aspoň to, co běží doma —
+picker nikdy nezůstane prázdný.
+
+Pod hláškou o spojení je rozbalovací *Co proxy odpověděla* se syrovou odpovědí
+obou dotazů. Když v seznamu chybí model, o kterém víš, že v proxy je, koukni
+sem — je z toho vidět, jestli ho proxy vůbec nabízí.
+
+Nastavený model, který proxy nezná, hlásí stránka červeně. Přepis by na něm
+spadl na `model not found`, tak ho vyber ze seznamu znovu a ulož.
+
 ### Modely na kartě
 
 ```bash

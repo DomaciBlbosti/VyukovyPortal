@@ -87,76 +87,142 @@ function proxyCall(string $path, ?array $payload = null, int $timeout = 600): ar
 /**
  * Seznam modelů. Slouží zároveň jako test spojení.
  *
- * Přednost má správcovský seznam proxy — ten jediný zná i modely komerčních
- * poskytovatelů. Bez klíče (nebo když ho proxy nezná) zbude výpis lokální
- * Ollamy, ať je z čeho vybírat i při prvním nastavování.
+ * Ptáme se obou seznamů a slučujeme je. /api/tags vrací prostý výpis lokální
+ * Ollamy a je jistota — správcovský /mgmt/v1/models přidá modely komerčních
+ * poskytovatelů, ale jeho tvar se může měnit. Kdyby ho nešlo přečíst, zůstane
+ * aspoň to, co běží doma, a picker nezůstane prázdný.
  *
- * @return array{ok:bool, models:array<int, array{name:string, provider:string, local:bool}>, error:string, full:bool}
+ * V `raw` je syrová odpověď obou volání kvůli ladění v adminu.
+ *
+ * @return array{ok:bool, models:array<int, array{name:string, provider:string, local:bool}>, error:string, full:bool, raw:array}
  */
 function proxyModels(): array {
     static $cache = null;
     if ($cache !== null) return $cache;
 
-    $r = proxyKey() !== '' ? proxyCall('/mgmt/v1/models', null, 20) : ['ok' => false, 'error' => 'Není vyplněný API klíč.'];
-    if ($r['ok']) {
-        $models = parseProxyModels($r['body']);
-        if ($models) return $cache = ['ok' => true, 'models' => $models, 'error' => '', 'full' => true];
+    // Lokální modely bereme vždycky z /api/tags — ten klíč nepotřebuje a vrací
+    // prostý seznam. Kdyby se /mgmt/v1/models nepodařilo přečíst, picker přesto
+    // nabídne to, co běží doma.
+    $tags   = proxyCall('/api/tags', null, 15);
+    $models = $tags['ok'] ? parseProxyModels($tags['body']) : [];
+    $error  = $tags['ok'] ? '' : $tags['error'];
+    $full   = false;
+    $raw    = ['/api/tags' => $tags['ok'] ? $tags['body'] : $tags['error']];
+
+    // S klíčem přidáme i modely zapnutých poskytovatelů
+    if (proxyKey() !== '') {
+        $mgmt = proxyCall('/mgmt/v1/models', null, 20);
+        $raw['/mgmt/v1/models'] = $mgmt['ok'] ? $mgmt['body'] : $mgmt['error'];
+        if ($mgmt['ok']) {
+            $extra = parseProxyModels($mgmt['body']);
+            if ($extra) {
+                $models = mergeProxyModels($models, $extra);
+                $full   = true;
+                $error  = '';
+            }
+        } elseif (!$models) {
+            $error = $mgmt['error'];
+        }
     }
 
-    $t = proxyCall('/api/tags', null, 15);
-    if (!$t['ok']) return $cache = ['ok' => false, 'models' => [], 'error' => $r['ok'] ? $t['error'] : $r['error'], 'full' => false];
+    if ($models) $error = '';
+    elseif ($error === '') $error = 'Proxy odpověděla, ale nenabídla žádný model.';
 
-    $models = parseProxyModels($t['body']);
-    return $cache = [
-        'ok'     => (bool)$models,
-        'models' => $models,
-        'error'  => $models ? '' : 'Proxy odpověděla, ale nenabídla žádný model.',
-        'full'   => false,
-    ];
+    return $cache = ['ok' => (bool)$models, 'models' => $models, 'error' => $error, 'full' => $full, 'raw' => $raw];
+}
+
+/** Sloučí dva seznamy; lokální příznak z /api/tags má přednost */
+function mergeProxyModels(array $local, array $all): array {
+    $out = [];
+    foreach ($local as $m) $out[$m['name']] = $m;
+    foreach ($all as $m) {
+        if (isset($out[$m['name']])) continue;
+        $out[$m['name']] = $m;
+    }
+    ksort($out, SORT_NATURAL | SORT_FLAG_CASE);
+    return array_values($out);
 }
 
 /**
- * Vytáhne modely z odpovědi proxy.
- *
- * Správcovský seznam, výpis Ollamy i seznam ve tvaru OpenAI se liší
- * obalem i názvy polí, a proxy je může časem změnit. Bereme proto všechny
- * obvyklé tvary a z položky si vezmeme, co v ní najdeme.
- *
- * @return array<int, array{name:string, provider:string, local:bool}>
+ * Ze seznamu modelů vytáhne jména bez ohledu na tvar odpovědi. Proxy i Ollama
+ * si každá vrací něco jiného — plochý seznam, seznam objektů, mapu jméno=>detail
+ * nebo skupiny po poskytovatelích — a všechny tyhle tvary tady projdou.
  */
 function parseProxyModels(array $body): array {
     $rows = $body;
-    foreach (['models', 'data', 'items', 'result'] as $key) {
+    foreach (['models', 'data', 'items', 'result', 'providers'] as $key) {
         if (isset($body[$key]) && is_array($body[$key])) { $rows = $body[$key]; break; }
     }
 
     $models = [];
+    collectProxyModels($rows, '', $models);
+    ksort($models, SORT_NATURAL | SORT_FLAG_CASE);
+    return array_values($models);
+}
+
+/** Rekurzivně projde odpověď; klíč nad skupinou bereme jako poskytovatele */
+function collectProxyModels($rows, string $provider, array &$models, int $depth = 0): void {
+    if ($depth > 4 || !is_array($rows)) return;
+
     foreach ($rows as $key => $row) {
-        // { "gpt-4o-mini": {...} } — název může být i klíčem
-        $name = is_string($key) && !is_int($key) ? $key : '';
-        if (is_string($row) && $name === '') $name = $row;
-        if (is_array($row)) {
+        $keyName = is_string($key) ? trim($key) : '';
+
+        if (is_string($row)) { addProxyModel($row, $provider, $models); continue; }
+        if (!is_array($row)) continue;
+
+        // Prostý seznam nikdy není popis modelu — je to skupina
+        if (array_is_list($row)) {
+            collectProxyModels($row, $keyName !== '' ? $keyName : $provider, $models, $depth + 1);
+            continue;
+        }
+
+        // Vnořené seznamy modelů: záznam je poskytovatel, ne model
+        $nested = array_filter($row, 'is_array');
+        $group  = false;
+        foreach (['models', 'data', 'items'] as $f) if (isset($nested[$f])) $group = true;
+
+        if (!$group) {
+            $name = '';
             foreach (['name', 'id', 'model'] as $f) {
                 if ($name === '' && !empty($row[$f]) && is_string($row[$f])) $name = $row[$f];
             }
-        }
-        $name = trim($name);
-        if ($name === '') continue;
-
-        $provider = '';
-        if (is_array($row)) {
-            foreach (['provider', 'provider_slug', 'source', 'owned_by'] as $f) {
-                if ($provider === '' && !empty($row[$f]) && is_string($row[$f])) $provider = (string)$row[$f];
+            if ($name !== '') {
+                $p = $provider;
+                foreach (['provider', 'provider_slug', 'slug', 'source', 'owned_by'] as $f) {
+                    if ($p === '' && !empty($row[$f]) && is_string($row[$f])) $p = (string)$row[$f];
+                }
+                addProxyModel($name, $p, $models);
+                continue;
             }
         }
-        // „library" a „ollama" znamenají model stažený doma, ne poskytovatele
-        $local = $provider === '' || in_array(strtolower($provider), ['ollama', 'local', 'library'], true);
 
-        $models[$name] = ['name' => $name, 'provider' => $local ? '' : $provider, 'local' => $local];
+        // Záznam bez jména: buď je jméno v klíči („gpt-4o-mini": {...}),
+        // nebo je pod ním celá skupina („ollama": {...} / {"slug":"anthropic","models":[...]}).
+        if (!$nested) { addProxyModel($keyName, $provider, $models); continue; }
+
+        $p = $provider;
+        foreach (['provider', 'provider_slug', 'slug', 'source', 'owned_by', 'name'] as $f) {
+            if (!empty($row[$f]) && is_string($row[$f])) { $p = (string)$row[$f]; break; }
+        }
+        if ($p === '' && $keyName !== '') $p = $keyName;
+
+        if ($group) {
+            // Skupina má seznam vedle svých vlastních údajů — projdeme jen ten seznam
+            foreach (['models', 'data', 'items'] as $f) {
+                if (isset($nested[$f])) collectProxyModels($nested[$f], $p, $models, $depth + 1);
+            }
+            continue;
+        }
+        collectProxyModels($row, $p, $models, $depth + 1);
     }
+}
 
-    ksort($models, SORT_NATURAL | SORT_FLAG_CASE);
-    return array_values($models);
+function addProxyModel(string $name, string $provider, array &$models): void {
+    $name = trim($name);
+    if ($name === '' || isset($models[$name])) return;
+    // „library" a „ollama" znamenají model stažený doma, ne poskytovatele
+    $local = $provider === '' || in_array(strtolower($provider), ['ollama', 'local', 'library'], true);
+    $models[$name] = ['name' => $name, 'provider' => $local ? '' : $provider, 'local' => $local];
 }
 
 /** Co proxy ví o modelu; prázdný řetězec u lokálního */
