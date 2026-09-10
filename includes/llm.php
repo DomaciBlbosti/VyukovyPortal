@@ -219,7 +219,22 @@ function ocrBlockIsImage(string $kind): bool {
  * přebytečné mezery. Jen malá písmena po obou stranách — pomlčka mezi
  * velkými písmeny nebo číslicemi bývá skutečná.
  */
+
+/**
+ * Křížovka nebo prázdná tabulka svede model k tomu, že vypíše stovky prázdných
+ * buněk — na jedné stránce z toho byl přepis o 8 tisících znacích, ze kterého
+ * se sada složit nedá a jen ujídá kontext. Necháme po mřížce značku.
+ */
+function collapseEmptyGrids(string $text): string {
+    $text = preg_replace('/^\|(?:[^\S\n]*\|){11,}[^\S\n]*$/mu', '[mřížka]', $text);
+    // stejný řádek tabulky několikrát za sebou stačí jednou
+    $text = preg_replace('/^(\|[^\n]*\|)$(?:\n\1$)+/mu', '$1', $text);
+    $text = preg_replace('/^(\[mřížka\])$(?:\n\[mřížka\]$)+/mu', '$1', $text);
+    return $text;
+}
+
 function ocrTidyText(string $text): string {
+    $text = collapseEmptyGrids($text);
     $text = preg_replace('/(\p{Ll})- (\p{Ll})/u', '$1$2', $text);
     $text = preg_replace("/[ \t]+\n/", "\n", $text);
     $text = preg_replace("/\n{3,}/", "\n\n", $text);
@@ -588,7 +603,9 @@ function buildSetPrompt(string $text, array $meta): string {
         . "- každou položku uveď jen jednou, žádné duplicity\n"
         . "- zachovej českou diakritiku\n"
         . "- co v textu není, si nevymýšlej\n"
-        . ($kind === 'doplnovacka' ? "- v každé větě musí být přesně jedno podtržítko\n" : '')
+        . ($kind === 'doplnovacka' ? "- v každé větě musí být přesně jedno podtržítko a přesně jedno vynechané slovo\n"
+                                   . "- větu, kde je vynechaných slov víc, do sady nedávej\n"
+                                   . "- odpověď je to jedno slovo, které do vynechávky patří\n" : '')
         . ($kind === 'vyber' || $kind === 'cteni' ? "- u každé otázky uveď aspoň tři možnosti včetně správné\n" : '')
         . "\nText:\n" . $text;
 }
@@ -630,7 +647,20 @@ function llmBuildSet(string $text, array $meta, string $modelOverride = ''): arr
     if (preg_match('/\{.*\}/s', $json, $m)) $json = $m[0];
 
     $pretty = json_decode($json, true);
-    if (is_array($pretty)) $json = json_encode($pretty, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if (is_array($pretty)) {
+        // Hlavičku sady vyplnil admin ve formuláři — model do ní mluvit nemá.
+        // Gemma třeba vrátila „doplnacka" místo „doplnovacka" a celá sada
+        // pak neprošla kontrolou, i když položky byly v pořádku.
+        $pretty = array_merge($pretty, [
+            'predmet' => (string)($meta['subject'] ?? 'ostatni'),
+            'rocnik'  => (int)($meta['grade'] ?? 0),
+            'typ'     => (string)($meta['kind'] ?? 'dvojice'),
+        ]);
+        foreach (['nazev' => 'title', 'zdroj' => 'source'] as $key => $from) {
+            if (trim((string)($meta[$from] ?? '')) !== '') $pretty[$key] = (string)$meta[$from];
+        }
+        $json = json_encode($pretty, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    }
 
     return ['ok' => true, 'json' => $json, 'error' => '', 'warning' => $warning];
 }
