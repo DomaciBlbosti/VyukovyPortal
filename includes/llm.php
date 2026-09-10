@@ -547,7 +547,8 @@ function llmOcrPageCombo(callable $call, string $layoutPrompt, string $textPromp
         // Aspoň text rozdělený po cvičeních, i když bez rámečků a obrázků
         $blocks = mergeBlanksIntoBlocks([], $free)['blocks'];
         return ['ok' => true, 'text' => $free, 'blocks' => $blocks, 'error' => '', 'tokens' => $tokens,
-                'warning' => 'Rámečky se nepovedly (' . ($a['ok'] ? 'model je nevrátil nebo celou stránku prohlásil za obrázek' : $a['error']) . ') — je jen text bez obrázků.'];
+                'warning' => 'Rámečky se nepovedly (' . ($a['ok'] ? 'model je nevrátil nebo celou stránku prohlásil za obrázek' : $a['error'])
+                           . ') — je jen text bez obrázků. Zkus na téhle stránce zadání OCR this image.'];
     }
     $warning = ocrRunWarning(blocksToText($blocks), $layoutPrompt, $stats, $a);
     if ($free === '') {
@@ -570,7 +571,8 @@ function llmOcrPageCombo(callable $call, string $layoutPrompt, string $textPromp
 function ocrRunWarning(string $text, string $prompt, ?array $stats, array $r): string {
     $warning = ocrTextWarning($text, $prompt);
     if ($warning === '' && ($stats['dropped'] ?? 0) >= 10) {
-        $warning = 'Model se zacyklil na rámečcích (' . $stats['dropped'] . ' opakování zahozeno) — konec stránky nejspíš chybí. Zkus jiné zadání, třeba Free OCR.';
+        $warning = 'Model se zacyklil na rámečcích (' . $stats['dropped'] . ' opakování zahozeno) — konec stránky'
+                 . ' nejspíš chybí. Zkus na téhle stránce zadání OCR this image, to se zacyklí míň.';
     }
     if ($warning === '' && !empty($r['truncated'])) {
         $warning = 'Odpověď narazila na limit délky — konec stránky může chybět. Zkus kratší zadání nebo jiný model.';
