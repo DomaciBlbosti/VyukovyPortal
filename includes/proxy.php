@@ -309,7 +309,7 @@ function proxyGenerate(string $model, string $prompt, ?string $imageB64 = null, 
     $cut    = (string)($r['body']['done_reason'] ?? '') === 'length';
     if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens, 'truncated' => $cut];
 
-    return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx), 'tokens' => $tokens, 'truncated' => $cut];
+    return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx, $model), 'tokens' => $tokens, 'truncated' => $cut];
 }
 
 /**
@@ -340,14 +340,18 @@ function proxyShow(string $model): array {
  * Samotné „model nic nevrátil" uživateli nepomůže — tohle rozliší vyčerpaný
  * kontext od modelu, který se upovídal v uvažování, a rovnou poradí, co s tím.
  */
-function emptyAnswerReason(array $body, int $ctx): string {
+function emptyAnswerReason(array $body, int $ctx, string $model = ''): string {
     $thinking = trim((string)($body['thinking'] ?? ''));
     $reason   = (string)($body['done_reason'] ?? '');
     $used     = (int)($body['prompt_eval_count'] ?? 0) + (int)($body['eval_count'] ?? 0);
 
+    // Uvažující model si celý strop na odpověď vypotřebuje na přemýšlení a
+    // k odpovědi se nedostane. Vypnout mu to jde parametrem „think", jenže
+    // některé (qwen3-vl) ho ignorují — tam nezbývá než sáhnout po jiném.
     if ($thinking !== '') {
-        return 'Model spotřeboval odpověď na uvažování (' . mb_strlen($thinking) . ' znaků) a k přepisu se nedostal. '
-             . 'Zkus model, který neuvažuje — třeba qwen3-vl nebo minicpm-v.';
+        return ($model !== '' ? 'Model ' . $model . ' spotřeboval' : 'Model spotřeboval')
+             . ' celou odpověď na uvažování (' . mb_strlen($thinking) . ' znaků) a k výsledku se nedostal. '
+             . 'Vypnout uvažování se u něj nedaří — vezmi model, který neuvažuje (deepseek-ocr, strike-ocr).';
     }
     if ($reason === 'length' || ($ctx > 0 && $used >= $ctx - 8)) {
         return 'Modelu došel kontext (' . $used . ' z ' . $ctx . ' tokenů) dřív, než odpověděl. '

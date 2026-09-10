@@ -149,6 +149,29 @@ sama — značka `<image>` z dokumentace DeepSeeku se do zadání nepíše).
 Souřadnicové značky `<|ref|>…<|/ref|><|det|>…<|/det|>`, které model
 s `<|grounding|>` přidává, aplikace z výstupu odstraní.
 
+### Co vyšlo z měření
+
+Zkoušeno na dvaceti stránkách — učebnice fyziky pro 6. třídu a pracovní sešit
+Project 1 — na kartě s 12 GB.
+
+| Model | Zadání | Čas na stránku | Jak dopadl |
+|---|---|---|---|
+| `HSR-DeepThink/strike-ocr` | Free OCR. | 3–5 s | přesná čeština i s diakritikou, vynechávky sedí |
+| `HSR-DeepThink/strike-ocr` | rámečky + vynechávky | 4–28 s | totéž a k tomu bloky a obrázky; na 8 z 20 stránek varování |
+| `HSR-DeepThink/strike-ocr` | OCR this image | 5–8 s | prošlo i tam, kde ostatní zadání selhala; bez obrázků a bez `______` |
+| `gemma4:12b` | Obecný vision model — česky | 124 s | čtyřicetkrát pomalejší a češtinu si domýšlí („roztižní výkladní auto") |
+| `qwen3-vl:8b` | cokoli | 75 s a nic | celou odpověď spotřebuje na uvažování, `think: false` ignoruje |
+
+Rozumné nastavení: **`strike-ocr` + rámečky a vynechávky**. Na stránkách,
+kde běh hlásí varování, dej *Spustit znovu* se zadáním *OCR this image* —
+v testu prošly všechny čtyři, na kterých kombinované zadání selhalo.
+
+**Pozor na obrázkové nápovědy.** Na stránce, kde se do vynechávek doplňují
+slova podle obrázků, si `Free OCR.` odpovědi vymyslel — do přepisu napsal
+*Maths*, *English*, *Geography*, *Football*, ačkoli v sešitě jsou prázdné
+řádky. Zadání *OCR this image* to nedělá. Než z takové stránky složíš sadu,
+porovnej přepis s fotkou; kvůli tomu je detail stránky vedle sebe.
+
 ### Jak zadání otestovat
 
 1. V galerii otevři jednu typickou stránku (slovíčka, nebo souvislý text).
@@ -231,6 +254,15 @@ sem — je z toho vidět, jestli ho proxy vůbec nabízí.
 
 Nastavený model, který proxy nezná, hlásí stránka červeně. Přepis by na něm
 spadl na `model not found`, tak ho vyber ze seznamu znovu a ulož.
+
+### Uvažující modely
+
+Model s vlastností `thinking` (v Ollamě jsou to `qwen3`, `qwen3-vl`, `gemma4`)
+si nejdřív rozmyslí, co odpoví. Vypnout se to má parametrem `think: false`
+a aplikace ho posílá — `gemma4` poslechne, `qwen3-vl` ne: v testu spolkl
+11,5 tisíce znaků úvah, narazil na strop odpovědi a k přepisu se nedostal.
+Na čtení stránek proto ber model, který neuvažuje (`deepseek-ocr`,
+`strike-ocr`). Na skládání sady uvažování nevadí, jen to trvá.
 
 ### Modely na kartě
 
