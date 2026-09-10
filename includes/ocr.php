@@ -275,7 +275,10 @@ function queueOcrRuns(array $pageIds, array $opts): string {
     // jestli fotka stránky opustila domácí síť
     $provider = modelProvider($model);
     $key      = (string)($opts['prompt_key'] ?? ocrDefaultPromptKey());
-    $prompt   = ocrPromptText($key, (string)($opts['prompt'] ?? ''));
+    // Upravené znění z formuláře má přednost před presetem — jinak by se
+    // ruční úprava zadání tiše zahodila a poslalo by se něco jiného,
+    // než co má admin před očima
+    $prompt   = trim((string)($opts['prompt'] ?? '')) ?: ocrPromptText($key);
     $now      = date('Y-m-d H:i:s');
 
     try {
