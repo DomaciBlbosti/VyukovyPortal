@@ -330,6 +330,49 @@ function pageRuns(int $pageId): array {
  *
  * @return array{done:bool, run_id:int, remaining:int}
  */
+/**
+ * Vyhodí z fronty, co se ještě nezačalo počítat.
+ *
+ * Když se celé album zařadí s nevhodným modelem nebo zadáním, je to desítky
+ * běhů a čekat, až se promelou, nemá smysl. Rozpracovaný běh necháváme být —
+ * model na něm na kartě pracuje a přerušit se nedá; dojede a uloží se.
+ *
+ * Stránky, které čekaly jen kvůli zrušenému běhu, se vrátí k tomu, co o nich
+ * platilo předtím: s přepisem jsou hotové, bez něj bez přepisu.
+ *
+ * @return int kolik běhů se zrušilo
+ */
+function cancelQueuedRuns(int $jobId): int {
+    try {
+        $db  = getDB();
+        $ids = array_column(ocrPages($jobId), 'id');
+        if (!$ids) return 0;
+
+        $in   = implode(',', array_fill(0, count($ids), '?'));
+        $open = $db->prepare("SELECT id, page_id FROM ocr_runs WHERE status = ? AND page_id IN ($in)");
+        $open->execute(['ceka', ...$ids]);
+        $runs = $open->fetchAll();
+        if (!$runs) return 0;
+
+        $db->prepare("DELETE FROM ocr_runs WHERE status = ? AND page_id IN ($in)")->execute(['ceka', ...$ids]);
+
+        // Stránka čeká jen tehdy, když na ni pořád nějaký běh je
+        $still = $db->prepare('SELECT COUNT(*) FROM ocr_runs WHERE page_id = ? AND status IN (?, ?)');
+        $text  = $db->prepare('SELECT text FROM ocr_pages WHERE id = ?');
+        $set   = $db->prepare('UPDATE ocr_pages SET status = ? WHERE id = ?');
+        foreach (array_unique(array_column($runs, 'page_id')) as $pid) {
+            $still->execute([$pid, 'ceka', 'bezi']);
+            if ((int)$still->fetchColumn() > 0) continue;
+            $text->execute([$pid]);
+            $set->execute([trim((string)$text->fetchColumn()) !== '' ? 'hotovo' : '', $pid]);
+        }
+        return count($runs);
+    } catch (PDOException $e) {
+        ocrFail($e);
+        return 0;
+    }
+}
+
 function processNextOcrRun(string $batch = ''): array {
     $db = getDB();
 
