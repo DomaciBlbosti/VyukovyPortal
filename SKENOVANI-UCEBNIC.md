@@ -138,10 +138,22 @@ Pro ně:
 | Extract the text | `Extract the text in the image.` | když Free OCR vrací málo |
 | Strike-OCR | `Extract text from this image` | znění od autora strike-ocr, bez tečky |
 
-**Obecné vision modely** — `gemma`, `qwen2.5vl`, `minicpm-v`,
-`llama3.2-vision`, `gpt-4o-mini` — naopak delší zadání potřebují, jinak
-stránku shrnou nebo přeloží. Pro ně jsou presety *Obecný vision model —
-anglicky* a *— česky*.
+**Obecné vision modely** — `claude-*`, `gpt-4o`, `gemma`, `qwen2.5vl`,
+`minicpm-v` — naopak delší zadání potřebují, jinak stránku shrnou nebo
+přeloží. Pro ně jsou presety *Obecný vision model — anglicky* a *— česky*.
+
+Rámečky kolem textu od nich nečekej, ty umí jen DeepSeek. **Obrázky ale
+ano:** obě zadání modelu říkají, ať na místo každé fotky, kresby nebo
+schématu napíše na vlastní řádek značku
+
+```
+image[[x1,y1,x2,y2]]
+```
+
+se souřadnicemi v tisícinách šířky a výšky stránky od levého horního rohu.
+Aplikace podle ní obrázek ze stránky vyřízne a uloží k přepisu stejně jako
+u DeepSeeku. Rámeček, který z tisícin vypadne (model místo nich pošle
+pixely), se zahodí — radši žádný obrázek než kus stránky odvedle.
 
 Model je na přesné znění citlivý, i tečka na konci hraje roli, proto se
 zadání posílá doslova. Obrázek se posílá zvlášť (Ollama si ho do zadání vloží
