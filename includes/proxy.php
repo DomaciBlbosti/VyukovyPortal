@@ -43,11 +43,11 @@ function proxyKey(): string {
  *
  * @return array{ok:bool, body:array, error:string, code:int}
  */
-function proxyCall(string $path, ?array $payload = null, int $timeout = 600): array {
+function proxyCall(string $path, ?array $payload = null, int $timeout = 600, array $extraHeaders = []): array {
     $base = proxyUrl();
     if ($base === '') return ['ok' => false, 'body' => [], 'error' => 'Adresa proxy není nastavená nebo není http(s).', 'code' => 0];
 
-    $headers = ['Content-Type: application/json'];
+    $headers = array_merge(['Content-Type: application/json'], $extraHeaders);
     $key     = proxyKey();
     if ($key !== '') $headers[] = 'Authorization: Bearer ' . $key;
 
@@ -92,9 +92,10 @@ function proxyCall(string $path, ?array $payload = null, int $timeout = 600): ar
  * poskytovatelů, ale jeho tvar se může měnit. Kdyby ho nešlo přečíst, zůstane
  * aspoň to, co běží doma, a picker nezůstane prázdný.
  *
- * V `raw` je syrová odpověď obou volání kvůli ladění v adminu.
+ * V `raw` je syrová odpověď obou volání kvůli ladění v adminu, v `providers`
+ * to, kudy a jakou řečí se na kterého poskytovatele mluví.
  *
- * @return array{ok:bool, models:array<int, array{name:string, provider:string, local:bool}>, error:string, full:bool, raw:array}
+ * @return array{ok:bool, models:array<int, array{name:string, provider:string, local:bool}>, error:string, full:bool, raw:array, providers:array<string, array{kind:string, path:string}>}
  */
 function proxyModels(): array {
     static $cache = null;
@@ -108,6 +109,7 @@ function proxyModels(): array {
     $error  = $tags['ok'] ? '' : $tags['error'];
     $full   = false;
     $raw    = ['/api/tags' => $tags['ok'] ? $tags['body'] : $tags['error']];
+    $provs  = [];
 
     // S klíčem přidáme i modely zapnutých poskytovatelů
     if (proxyKey() !== '') {
@@ -117,6 +119,7 @@ function proxyModels(): array {
             $extra = parseProxyModels($mgmt['body']);
             if ($extra) {
                 $models = mergeProxyModels($models, $extra);
+                $provs  = parseProxyProviders($mgmt['body']);
                 $full   = true;
                 $error  = '';
             }
@@ -128,7 +131,58 @@ function proxyModels(): array {
     if ($models) $error = '';
     elseif ($error === '') $error = 'Proxy odpověděla, ale nenabídla žádný model.';
 
-    return $cache = ['ok' => (bool)$models, 'models' => $models, 'error' => $error, 'full' => $full, 'raw' => $raw];
+    return $cache = ['ok' => (bool)$models, 'models' => $models, 'error' => $error,
+                     'full' => $full, 'raw' => $raw, 'providers' => $provs];
+}
+
+/**
+ * Kudy a jakou řečí se mluví na jednotlivé poskytovatele.
+ *
+ * Správcovský seznam u každého poskytovatele uvádí vlastní `base_url`
+ * a `kind`. Lokální Ollama poslouchá na kořeni, komerční API mají každé
+ * svou cestu (`/providers/anthropic`, `/providers/openai/v1`) a svůj tvar
+ * požadavku — po jménu modelu se na kořeni nesměrují.
+ *
+ * Z adresy si bereme jen cestu; na jaký server se obracíme, zůstává věcí
+ * nastavení, ne odpovědi ze sítě.
+ *
+ * @return array<string, array{kind:string, path:string}>
+ */
+function parseProxyProviders(array $body): array {
+    $rows = isset($body['providers']) && is_array($body['providers']) ? $body['providers'] : $body;
+    $out  = [];
+    foreach ($rows as $key => $row) {
+        if (!is_array($row)) continue;
+        $slug = is_string($key) ? trim($key) : trim((string)($row['slug'] ?? $row['id'] ?? $row['name'] ?? ''));
+        if ($slug === '') continue;
+
+        $kind = strtolower(trim((string)($row['kind'] ?? $row['type'] ?? '')));
+        $path = proxyPathOf((string)($row['base_url'] ?? $row['url'] ?? ''));
+        if ($kind === '' && $path === '') continue;
+
+        $out[$slug] = ['kind' => $kind !== '' ? $kind : 'ollama', 'path' => $path];
+    }
+    return $out;
+}
+
+/** Z adresy poskytovatele si necháme jen cestu */
+function proxyPathOf(string $url): string {
+    $path = rtrim((string)parse_url(trim($url), PHP_URL_PATH), '/');
+    if ($path === '' || $path === '/') return '';
+    return str_starts_with($path, '/') ? $path : '/' . $path;
+}
+
+/**
+ * Kam poslat požadavek pro daný model.
+ *
+ * @return array{kind:string, path:string, slug:string}
+ */
+function proxyProviderOf(string $model): array {
+    $slug = modelProvider($model);
+    if ($slug === '') return ['kind' => 'ollama', 'path' => '', 'slug' => ''];
+
+    $prov = proxyModels()['providers'][$slug] ?? ['kind' => '', 'path' => ''];
+    return ['kind' => $prov['kind'] ?: 'ollama', 'path' => $prov['path'], 'slug' => $slug];
 }
 
 /** Sloučí dva seznamy; lokální příznak z /api/tags má přednost */
@@ -225,6 +279,23 @@ function addProxyModel(string $name, string $provider, array &$models): void {
     $models[$name] = ['name' => $name, 'provider' => $local ? '' : $provider, 'local' => $local];
 }
 
+/**
+ * Dá se na tenhle model mluvit textem?
+ *
+ * Komerční poskytovatel vrací v seznamu i modely na řeč, přepis zvuku,
+ * obrázky a embeddingy — u OpenAI je jich víc než šedesát a v nabídce by
+ * se ten správný hledal těžko. Na jméno to jde poznat dost spolehlivě;
+ * lokálních modelů se to netýká, ty si stahuje admin sám.
+ */
+function modelLooksChatty(string $name): bool {
+    $n = strtolower($name);
+    foreach (['tts', 'transcribe', 'whisper', 'embed', 'moderation', 'realtime',
+              'audio', 'image', 'dall-e', 'sora', 'davinci', 'babbage', 'instruct'] as $needle) {
+        if (str_contains($n, $needle)) return false;
+    }
+    return true;
+}
+
 /** Co proxy ví o modelu; prázdný řetězec u lokálního */
 function modelProvider(string $model): string {
     foreach (proxyModels()['models'] as $m) {
@@ -273,6 +344,13 @@ function proxyContextSize(): int {
 function proxyGenerate(string $model, string $prompt, ?string $imageB64 = null, bool $wantJson = false): array {
     if ($model === '') return ['ok' => false, 'text' => '', 'error' => 'Není vybraný model.', 'tokens' => 0, 'truncated' => false];
 
+    // Komerční model se nesměruje podle jména na kořeni — má u proxy vlastní
+    // cestu a mluví svou vlastní řečí.
+    $prov = proxyProviderOf($model);
+    if ($prov['kind'] === 'anthropic' || $prov['kind'] === 'openai') {
+        return proxyGenerateProvider($model, $prov, $prompt, $imageB64, $wantJson);
+    }
+
     $ctx     = proxyContextSize();
     $payload = [
         'model'   => $model,
@@ -310,6 +388,88 @@ function proxyGenerate(string $model, string $prompt, ?string $imageB64 = null, 
     if ($text !== '') return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens, 'truncated' => $cut];
 
     return ['ok' => false, 'text' => '', 'error' => emptyAnswerReason($r['body'], $ctx, $model), 'tokens' => $tokens, 'truncated' => $cut];
+}
+
+/**
+ * Požadavek na komerční model.
+ *
+ * Proxy u každého poskytovatele uvádí `base_url pro aplikace` a aplikace na
+ * ni mluví přímo řečí toho poskytovatele — jako by si povídala s api.anthropic.com
+ * nebo api.openai.com. Klíč k poskytovateli zůstává v proxy, aplikace se pořád
+ * hlásí jen svým `opx_` klíčem.
+ *
+ * @return array{ok:bool, text:string, error:string, tokens:int, truncated:bool}
+ */
+function proxyGenerateProvider(string $model, array $prov, string $prompt, ?string $imageB64, bool $wantJson): array {
+    $fail = fn(string $e) => ['ok' => false, 'text' => '', 'error' => $e, 'tokens' => 0, 'truncated' => false];
+    if ($prov['path'] === '') {
+        return $fail('Proxy neřekla, na jakou adresu se posílá poskytovatel ' . $prov['slug'] . '. Zkontroluj ho ve správě proxy.');
+    }
+
+    // Komerčním modelům kontext došlapovat nemusíme, okno mají velké
+    $max  = PROXY_MAX_TOKENS * 2;
+    $type = $imageB64 !== null ? imageMediaType($imageB64) : '';
+
+    if ($prov['kind'] === 'anthropic') {
+        $content = [['type' => 'text', 'text' => $prompt]];
+        if ($imageB64 !== null) {
+            array_unshift($content, ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $type, 'data' => $imageB64]]);
+        }
+        $r = proxyCall($prov['path'] . '/v1/messages', [
+            'model'       => $model,
+            'max_tokens'  => $max,
+            'temperature' => 0,
+            'messages'    => [['role' => 'user', 'content' => $content]],
+        ], 600, ['anthropic-version: 2023-06-01']);
+        if (!$r['ok']) return $fail($r['error']);
+
+        $text = '';
+        foreach ((array)($r['body']['content'] ?? []) as $part) {
+            if (is_array($part) && ($part['type'] ?? '') === 'text') $text .= (string)($part['text'] ?? '');
+        }
+        $text   = trim($text);
+        $tokens = (int)($r['body']['usage']['output_tokens'] ?? 0);
+        $cut    = (string)($r['body']['stop_reason'] ?? '') === 'max_tokens';
+        if ($text === '') return $fail('Model ' . $model . ' vrátil prázdnou odpověď (důvod ukončení: ' . ($r['body']['stop_reason'] ?? '—') . ').');
+        return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens, 'truncated' => $cut];
+    }
+
+    // openai a všechno, co mluví jeho řečí
+    $content = [['type' => 'text', 'text' => $prompt]];
+    if ($imageB64 !== null) {
+        $content[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $type . ';base64,' . $imageB64]];
+    }
+    $payload = [
+        'model'       => $model,
+        'messages'    => [['role' => 'user', 'content' => $content]],
+        'max_tokens'  => $max,
+        'temperature' => 0,
+    ];
+    if ($wantJson) $payload['response_format'] = ['type' => 'json_object'];
+
+    $r = proxyCall($prov['path'] . '/chat/completions', $payload);
+    // Novější modely „max_tokens" ani vlastní teplotu nepřijímají
+    if (!$r['ok'] && $r['code'] === 400) {
+        unset($payload['max_tokens'], $payload['temperature']);
+        $payload['max_completion_tokens'] = $max;
+        $r = proxyCall($prov['path'] . '/chat/completions', $payload);
+    }
+    if (!$r['ok']) return $fail($r['error']);
+
+    $choice = $r['body']['choices'][0] ?? [];
+    $text   = trim((string)($choice['message']['content'] ?? ''));
+    $tokens = (int)($r['body']['usage']['completion_tokens'] ?? 0);
+    $cut    = (string)($choice['finish_reason'] ?? '') === 'length';
+    if ($text === '') return $fail('Model ' . $model . ' vrátil prázdnou odpověď (důvod ukončení: ' . ($choice['finish_reason'] ?? '—') . ').');
+    return ['ok' => true, 'text' => $text, 'error' => '', 'tokens' => $tokens, 'truncated' => $cut];
+}
+
+/** Podle prvních bajtů base64 poznáme, co za obrázek to je */
+function imageMediaType(string $b64): string {
+    if (str_starts_with($b64, 'iVBORw0KGgo')) return 'image/png';
+    if (str_starts_with($b64, 'R0lGOD'))      return 'image/gif';
+    if (str_starts_with($b64, 'UklGR'))       return 'image/webp';
+    return 'image/jpeg';
 }
 
 /**
