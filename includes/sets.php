@@ -60,6 +60,24 @@ function setSubjectLabel(string $subject): string {
  * Vrací ['set' => …, 'items' => […], 'errors' => […]]. Když jsou v errors
  * nějaké položky, neukládá se nic — půlka nahrané sady je horší než žádná.
  */
+/**
+ * Uklidí zadání položky.
+ *
+ * Model skládá sadu z přepisu stránky a tahá si do ní jeho drobty: odrážku
+ * dialogu, hvězdičky obtížnosti. A mezeru k doplnění napíše jednou
+ * podtržítkem, což je ve hře sotva vidět — ať je vždycky stejně široká
+ * a nápadná.
+ *
+ * Čísla na začátku nechaváme být: „1. světová válka" je zadání, ne číslování,
+ * a spolehlivě se to rozlišit nedá.
+ */
+function tidySetPrompt(string $prompt, string $kind): string {
+    // odrážky a hvězdičky obsahem nikdy nejsou
+    $prompt = (string)preg_replace('/^(?:[•◦▪●‣]|★+|\s)+/u', '', $prompt);
+    if ($kind === 'doplnovacka') $prompt = (string)preg_replace('/_+/', '______', $prompt);
+    return trim($prompt);
+}
+
 function parseSetPayload(string $json): array {
     $out = ['set' => null, 'items' => [], 'errors' => []];
 
@@ -116,6 +134,8 @@ function parseSetPayload(string $json): array {
             default   => [trim((string)($it['otazka'] ?? $it['veta'] ?? '')),
                           trim((string)($it['odpoved'] ?? ''))],
         };
+
+        $prompt = tidySetPrompt($prompt, $kind);
 
         if ($prompt === '') { $out['errors'][] = "Položka $n nemá zadání."; continue; }
         if ($answer === '') { $out['errors'][] = "Položka $n nemá odpověď."; continue; }
