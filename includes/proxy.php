@@ -24,6 +24,15 @@ const PROXY_DEFAULT_URL = 'http://ollama:11434';
 const PROXY_MAX_TOKENS = 4096;
 
 /**
+ * Totéž pro komerční modely.
+ *
+ * Těm se strop neodvozuje od kontextu — mají okno v milionech tokenů —
+ * ale musí se do něj vejít i rozmýšlení, které novější modely dělají samy
+ * od sebe a vypnout se nedá. Na stránku učebnice to s rezervou stačí.
+ */
+const PROXY_CLOUD_MAX_TOKENS = 16000;
+
+/**
  * Adresa proxy. Pouštíme se jen na http(s) — jinam se server obracet nemá.
  * Vrací prázdný řetězec, když je adresa nesmyslná.
  */
@@ -406,8 +415,10 @@ function proxyGenerateProvider(string $model, array $prov, string $prompt, ?stri
         return $fail('Proxy neřekla, na jakou adresu se posílá poskytovatel ' . $prov['slug'] . '. Zkontroluj ho ve správě proxy.');
     }
 
-    // Komerčním modelům kontext došlapovat nemusíme, okno mají velké
-    $max  = PROXY_MAX_TOKENS * 2;
+    // Komerčním modelům kontext došlapovat nemusíme, okno mají velké. Strop
+    // na odpověď je naopak vyšší než u lokálních: novější modely si nejdřív
+    // rozmýšlejí a to se do něj počítá taky.
+    $max  = PROXY_CLOUD_MAX_TOKENS;
     $type = $imageB64 !== null ? imageMediaType($imageB64) : '';
 
     if ($prov['kind'] === 'anthropic') {
@@ -415,11 +426,13 @@ function proxyGenerateProvider(string $model, array $prov, string $prompt, ?stri
         if ($imageB64 !== null) {
             array_unshift($content, ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $type, 'data' => $imageB64]]);
         }
+        // Teplotu neposíláme vůbec: novější modely ji nepřijímají
+        // („`temperature` is deprecated for this model.", chyba 400) a starší
+        // si s výchozí hodnotou poradí.
         $r = proxyCall($prov['path'] . '/v1/messages', [
-            'model'       => $model,
-            'max_tokens'  => $max,
-            'temperature' => 0,
-            'messages'    => [['role' => 'user', 'content' => $content]],
+            'model'      => $model,
+            'max_tokens' => $max,
+            'messages'   => [['role' => 'user', 'content' => $content]],
         ], 600, ['anthropic-version: 2023-06-01']);
         if (!$r['ok']) return $fail($r['error']);
 
@@ -440,17 +453,16 @@ function proxyGenerateProvider(string $model, array $prov, string $prompt, ?stri
         $content[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $type . ';base64,' . $imageB64]];
     }
     $payload = [
-        'model'       => $model,
-        'messages'    => [['role' => 'user', 'content' => $content]],
-        'max_tokens'  => $max,
-        'temperature' => 0,
+        'model'      => $model,
+        'messages'   => [['role' => 'user', 'content' => $content]],
+        'max_tokens' => $max,
     ];
     if ($wantJson) $payload['response_format'] = ['type' => 'json_object'];
 
     $r = proxyCall($prov['path'] . '/chat/completions', $payload);
-    // Novější modely „max_tokens" ani vlastní teplotu nepřijímají
+    // Novější modely „max_tokens" nepřijímají, chtějí „max_completion_tokens"
     if (!$r['ok'] && $r['code'] === 400) {
-        unset($payload['max_tokens'], $payload['temperature']);
+        unset($payload['max_tokens']);
         $payload['max_completion_tokens'] = $max;
         $r = proxyCall($prov['path'] . '/chat/completions', $payload);
     }
