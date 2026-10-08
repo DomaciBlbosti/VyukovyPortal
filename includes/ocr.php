@@ -505,12 +505,15 @@ function cropPageImage(string $imageB64, array $box): string {
     if (!$img) return '';
     $w = imagesx($img);
     $h = imagesy($img);
-    // Malý přesah, ať rámeček neuřízne okraj kresby
-    $pad = 8;
-    $x1 = max(0, (int)floor($box[0] / 1000 * $w) - $pad);
-    $y1 = max(0, (int)floor($box[1] / 1000 * $h) - $pad);
-    $x2 = min($w, (int)ceil($box[2] / 1000 * $w) + $pad);
-    $y2 = min($h, (int)ceil($box[3] / 1000 * $h) + $pad);
+    // Přesah, ať rámeček neuřízne okraj kresby. Obecný model odhaduje
+    // souřadnice od oka a na drobném obrázku se umí seknout o pár procent
+    // stránky — pár pixelů by na to nestačilo.
+    $padX = max(8, (int)round($w * 0.02));
+    $padY = max(8, (int)round($h * 0.02));
+    $x1 = max(0, (int)floor($box[0] / 1000 * $w) - $padX);
+    $y1 = max(0, (int)floor($box[1] / 1000 * $h) - $padY);
+    $x2 = min($w, (int)ceil($box[2] / 1000 * $w) + $padX);
+    $y2 = min($h, (int)ceil($box[3] / 1000 * $h) + $padY);
     if ($x2 - $x1 < 8 || $y2 - $y1 < 8) { imagedestroy($img); return ''; }
 
     $crop = imagecrop($img, ['x' => $x1, 'y' => $y1, 'width' => $x2 - $x1, 'height' => $y2 - $y1]);
