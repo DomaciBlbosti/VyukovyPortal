@@ -69,6 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? 'Tenhle přepis je teď platný.' : 'Běh se nepodařilo vybrat.';
             break;
 
+        case 'cancel_queue':
+            $n = cancelQueuedRuns((int)($_POST['album_id'] ?? 0));
+            $message = $n ? 'Z fronty zrušeno běhů: ' . $n . '. Co se už počítá, dojede.'
+                          : 'Ve frontě nic nečekalo.';
+            break;
+
         case 'delete_run':
             $message = deleteOcrRun((int)($_POST['run_id'] ?? 0))
                 ? 'Běh smazán.' : 'Vybraný běh smazat nejde — nejdřív vyber jiný.';
@@ -259,6 +265,20 @@ include __DIR__ . '/../includes/header.php';
             <a href="<?= BASE_URL ?>/admin/ocr.php" class="btn-secondary btn-sm">← jiné album</a>
         </div>
     </div>
+
+    <?php $ceka = count(array_filter($pages, fn($p) => $p['status'] === 'ceka')); if ($ceka): ?>
+    <form method="post" style="margin-top:1rem">
+        <input type="hidden" name="action" value="cancel_queue">
+        <input type="hidden" name="album_id" value="<?= $albumId ?>">
+        <div class="alert alert-error" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+            <span>Ve frontě čeká stránek: <strong><?= $ceka ?></strong>.
+                Zpracovávají se postupně, dokud je tahle stránka otevřená.</span>
+            <button type="submit" class="btn-sm btn-sm-red">Zrušit frontu</button>
+        </div>
+        <p class="mistake-hint">Zařadil jsi je omylem s jiným modelem nebo zadáním? Zruš frontu a pusť je znovu.
+            Stránka, kterou model zrovna počítá, dojede — přerušit se nedá.</p>
+    </form>
+    <?php endif; ?>
 
     <?php if (!$pages): ?>
     <p class="mistake-hint" style="margin-top:1rem">Album nemá žádné fotky —
