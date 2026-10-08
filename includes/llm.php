@@ -61,20 +61,31 @@ const OCR_PROMPTS = [
     ],
     'vlm_en' => [
         'label'  => 'Obecný vision model — anglicky',
-        'for'    => 'gemma, qwen2.5vl, minicpm-v, llama3.2-vision, gpt-4o-mini',
+        'for'    => 'claude, gpt-4o, gemma, qwen2.5vl, minicpm-v',
         'prompt' => "Transcribe all the text on this textbook page exactly as printed, including Czech diacritics (háčky, čárky). "
                   . "Keep the line breaks. If the page has a two-column vocabulary list, write each pair on its own line as: english = česky. "
-                  . "Do not translate, summarize, or comment. Output only the transcription.",
-        'note'   => 'Obecné modely rozumí anglickému zadání spolehlivěji než českému.',
+                  . "Do not translate, summarize, or comment. Skip page numbers.\n\n"
+                  . "Wherever the page has a picture, photo, diagram or drawing, put a marker on a line of its own, "
+                  . "at the place in the text where the picture sits:\n"
+                  . "image[[x1,y1,x2,y2]]\n"
+                  . "The four numbers are thousandths of the page width and height (0 to 1000) measured from the top-left corner: "
+                  . "x1,y1 is the top-left corner of the picture, x2,y2 the bottom-right. Add no caption to the marker.\n\n"
+                  . "Output only the transcription and the markers.",
+        'note'   => 'Obecné modely rozumí anglickému zadání spolehlivěji než českému. Značkami image[[…]] říká model, kde jsou obrázky — aplikace je podle nich vyřízne a uloží.',
     ],
     'vlm_cs' => [
         'label'  => 'Obecný vision model — česky',
-        'for'    => 'gemma, qwen2.5vl, gpt-4o-mini',
+        'for'    => 'claude, gpt-4o, gemma, qwen2.5vl',
         'prompt' => "Přepiš text z téhle stránky učebnice. Piš přesně to, co na stránce je, včetně české diakritiky. "
                   . "Nic nepřidávej, nekomentuj a nepřekládej.\n\n"
                   . "Když je na stránce dvousloupcový seznam slovíček, zapiš každou dvojici na vlastní řádek ve tvaru: anglicky = česky\n\n"
-                  . "Když je na stránce běžný text, přepiš ho po odstavcích. Obrázky a čísla stránek vynech.",
-        'note'   => 'Původní zadání aplikace. Specializované OCR modely na něj reagují zacyklením.',
+                  . "Běžný text přepiš po odstavcích. Čísla stránek vynech.\n\n"
+                  . "Kde je na stránce obrázek, fotka, schéma nebo kresba, napiš místo něj na vlastní řádek značku:\n"
+                  . "image[[x1,y1,x2,y2]]\n"
+                  . "Čísla jsou tisíciny šířky a výšky stránky (0 až 1000) počítané od levého horního rohu: "
+                  . "x1,y1 je levý horní roh obrázku, x2,y2 pravý dolní. Značku napiš na to místo v textu, kde obrázek na stránce je, "
+                  . "a nic k ní nepřipisuj.",
+        'note'   => 'Značkami image[[…]] říká model, kde jsou obrázky — aplikace je podle nich vyřízne a uloží. Specializované OCR modely na tohle zadání reagují zacyklením.',
     ],
     'custom' => [
         'label'  => 'Vlastní zadání',
@@ -153,11 +164,19 @@ function parseOcrBlocks(string $raw, ?array &$stats = null): array {
     };
 
     foreach (explode("\n", $s) as $line) {
-        $t = trim($line);
+        // Obecný model značku rád ozdobí odrážkou nebo zpětnými uvozovkami
+        $t = (string)preg_replace('/^[-*+]\s+/', '', trim($line));
+        $t = trim(trim($t, '`'));
+
         // štítek bloku: druh + rámeček, obsah následuje na dalších řádcích
         if (preg_match('/^([a-z_]+)' . $box . '$/', $t, $m)) {
             $flush();
-            $cur = ['kind' => $m[1], 'box' => [(int)$m[2], (int)$m[3], (int)$m[4], (int)$m[5]], 'text' => ''];
+            $b = [(int)$m[2], (int)$m[3], (int)$m[4], (int)$m[5]];
+            // Obrázek žádný text nemá. Kdybychom blok nechali otevřený,
+            // spolkne odstavec, který za ním následuje — a přesně tak píšou
+            // obecné modely: značka uprostřed souvislého přepisu.
+            if (ocrBlockIsImage($m[1])) { $blocks[] = ['kind' => $m[1], 'box' => $b, 'text' => '']; continue; }
+            $cur = ['kind' => $m[1], 'box' => $b, 'text' => ''];
             continue;
         }
         // řádkový režim: obsah[[rámeček]]
@@ -177,7 +196,13 @@ function parseOcrBlocks(string $raw, ?array &$stats = null): array {
             }
             continue;
         }
-        if ($cur !== null) $cur['text'] .= ($cur['text'] === '' ? '' : "\n") . $t;
+        // Řádek mimo jakýkoli štítek je pořád text — u obecných modelů je
+        // takový celý přepis, jen s občasnou značkou obrázku mezi odstavci
+        if ($cur === null) {
+            if ($t === '') continue;
+            $cur = ['kind' => 'text', 'box' => null, 'text' => ''];
+        }
+        $cur['text'] .= ($cur['text'] === '' ? '' : "\n") . $t;
     }
     $flush();
 
@@ -194,7 +219,10 @@ function parseOcrBlocks(string $raw, ?array &$stats = null): array {
     $out  = [];
     foreach ($blocks as $b) {
         $box  = $b['box'];
-        $bad  = $box && ($box[2] <= $box[0] || $box[3] <= $box[1]);
+        // Souřadnice jsou tisíciny stránky. Když model pošle pixely nebo si
+        // je vymyslí, výřez by padl úplně jinam — radši takový rámeček
+        // zahodíme, než abychom uložili kus stránky odvedle.
+        $bad  = $box && ($box[2] <= $box[0] || $box[3] <= $box[1] || max($box) > 1000);
         // „Obrázek" přes celou stránku znamená, že model stránku nerozpoznal —
         // výřez by byl celá fotka a text by se schoval za jednu značku
         if ($box && ocrBlockIsImage($b['kind']) && ($box[2] - $box[0]) * ($box[3] - $box[1]) >= 900000) { $stats['dropped']++; continue; }
