@@ -38,6 +38,9 @@ function proxyModelPicker(string $name, string $current): void {
     $probe  = ocrProbe();
     $groups = ['🏠 U tebe doma' => [], '☁️ Komerční (fotky odejdou ven)' => []];
     foreach ($probe['models'] as $m) {
+        // Modely na řeč, zvuk a obrázky do nabídky nepatří — ten nastavený
+        // ale necháme vidět vždycky, ať se nastavení nerozbije tichem
+        if (!$m['local'] && !modelLooksChatty($m['name']) && $m['name'] !== $current) continue;
         $groups[$m['local'] ? '🏠 U tebe doma' : '☁️ Komerční (fotky odejdou ven)'][] = $m;
     }
     // Nastavený model nabídneme i tehdy, když ho proxy zrovna nevypsala

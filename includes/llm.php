@@ -500,9 +500,9 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
     if ($prompt === '') return $fail('Zadání pro přepis je prázdné.');
 
     // Textový model by fotku mlčky zahodil a něco si vymyslel — radši se
-    // zeptáme dopředu. U komerčního modelu se ptát nemá koho a /api/show
-    // selže; pak jedeme dál.
-    $show = proxyShow($model);
+    // zeptáme dopředu. Ptát se dá jen u modelu, který běží doma; komerční
+    // proxy jen přeposílá a /api/show o něm nic neví.
+    $show = modelIsLocal($model) ? proxyShow($model) : ['ok' => false, 'vision' => false];
     if ($show['ok'] && !$show['vision']) {
         return $fail('Model ' . $model . ' neumí obrázky (nemá schopnost „vision"). Vyber vision model.');
     }
