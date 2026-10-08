@@ -644,6 +644,10 @@ function buildSetPrompt(string $text, array $meta): string {
         . ($kind === 'doplnovacka' ? "- v každé větě musí být přesně jedno podtržítko a přesně jedno vynechané slovo\n"
                                    . "- větu, kde je vynechaných slov víc, do sady nedávej\n"
                                    . "- odpověď je to jedno slovo, které do vynechávky patří\n" : '')
+        . ($kind === 'dvojice' ? "- dvojice se ve hře hraje oběma směry, tak ať dává smysl i obráceně:"
+                               . " do „a\" ani do „b\" nepiš pokyn (napiš, zapiš, přeskládej), číslo úlohy"
+                               . " ani nic, co platí jen pro jeden směr\n"
+                               . "- do jedné sady dávej dvojice jen jednoho druhu; co mezi ně nepatří, vynech\n" : '')
         . ($kind === 'vyber' || $kind === 'cteni' ? "- u každé otázky uveď aspoň tři možnosti včetně správné\n" : '')
         . "\nText:\n" . $text;
 }
