@@ -155,6 +155,14 @@ function parseOcrBlocks(string $raw, ?array &$stats = null): array {
     $s = str_replace(['<|grounding|>', '<image>'], '', $s);
     if (!str_contains($s, '[[')) return [];
 
+    // Obecný model značku rád nalepí na řádek k jiné nebo za ni ještě napíše
+    // slovo „image". Ať má každá značka svůj řádek, jinak se nerozpozná
+    // a zůstane v přepisu jako smetí.
+    $s = (string)preg_replace(
+        '/[^\S\n]*((?:image|figure|picture|photo)\[\[\d+,\s*\d+,\s*\d+,\s*\d+\]\])'
+        . '(?:[^\S\n]+(?:image|figure|picture|photo)\b)?[^\S\n]*/i',
+        "\n$1\n", $s);
+
     $box    = '\[\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\](?:,\s*\[[^\]]*\])*\]';
     $blocks = [];
     $cur    = null;
