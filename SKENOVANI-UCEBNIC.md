@@ -211,10 +211,26 @@ Typ sady vybírej podle toho, co je na stránkách:
 | doplnovacka | věty s vynechaným slovem |
 | cteni | souvislý text a otázky k němu |
 
-**Na skládání sady patří obecný model** (gemma4, qwen3, gpt-4o-mini), ne
+**Na skládání sady patří obecný model** (claude, gpt-4o, gemma4, qwen3), ne
 specializovaný OCR model — ten JSON nesloží. Když je v nastavení jako textový
 model něco s „ocr" v názvu, aplikace na to upozorní červeně. U jednotlivého
 sestavení si můžeš vybrat jiný model, než je ten výchozí.
+
+### Opravit jednotlivou otázku
+
+Model píše, co našel v knize, a občas se to nepovede — špatná odpověď, věta
+useknutá uprostřed, možnost navíc. V *Sadách* je u každé sady tlačítko
+**Upravit**: vypíše všechny položky, u každé pole na zadání, odpověď
+a možnosti (oddělují se svislítkem `|`) a zaškrtávátko **✕** na smazání.
+
+Uložení projde přesně stejnou kontrolou jako nahrání sady — tytéž chyby,
+tatáž hlášení. Když něco nesedí, nic se neuloží a formulář drží to, cos
+napsal, ať se to nemusí psát znovu. V sadě musí po uložení zůstat aspoň
+čtyři položky, jinak není z čeho postavit kolo.
+
+Položky, kterých se úprava nedotkla, si nechávají svůj klíč, takže o historii
+chyb v chybovníku nepřijdou. Přepsaná otázka je nová otázka a začíná s čistým
+štítem — to je správně, je to jiné zadání.
 
 ## Přes co to jde: Ollama Proxy
 

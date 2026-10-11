@@ -13,13 +13,45 @@ require_once __DIR__ . '/../includes/ocr.php';
 
 $user    = getCurrentUser();
 $message = $error = '';
-$preview = null;
-$rawJson = '';
+$preview  = null;
+$rawJson  = '';
+$editRows = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'delete') {
+    if ($action === 'update_items') {
+        $editId  = (int)($_POST['set_id'] ?? 0);
+        $editSet = getSet($editId);
+        if (!$editSet) {
+            $error = 'Taková sada tu není.';
+        } else {
+            // Z formuláře složíme tentýž JSON, jaký by přišel z importu —
+            // ať úprava projde stejnou kontrolou jako nahrání
+            $rows = [];
+            foreach (array_values((array)($_POST['prompt'] ?? [])) as $i => $prompt) {
+                if (isset($_POST['drop'][$i])) continue;
+                $rows[] = [
+                    'prompt'  => (string)$prompt,
+                    'answer'  => (string)(($_POST['answer'][$i]) ?? ''),
+                    'options' => array_map('trim', explode('|', (string)(($_POST['options'][$i]) ?? ''))),
+                    'hint'    => (string)(($_POST['hint'][$i]) ?? ''),
+                ];
+            }
+            $checked = parseSetPayload(setPayloadFromItems($editSet, $rows));
+            if ($checked['errors']) {
+                $error    = 'Sada se nedá uložit — oprav tohle:';
+                $preview  = $checked;
+                $editRows = $rows;
+            } elseif (replaceSetItems($editId, $checked['items'])) {
+                $message = 'Uloženo: ' . $editSet['title'] . ' (' . count($checked['items']) . ' položek).';
+            } else {
+                $error    = 'Uložení selhalo — zkus to znovu.';
+                $editRows = $rows;
+            }
+        }
+
+    } elseif ($action === 'delete') {
         $message = deleteSet((int)($_POST['id'] ?? 0))
             ? 'Sada smazána.'
             : 'Sadu se nepodařilo smazat.';
@@ -47,6 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+$editId  = (int)($_GET['edit'] ?? $_POST['set_id'] ?? 0);
+$editSet = $editId ? getSet($editId) : null;
+// Po neúspěšném uložení ukazujeme to, co admin napsal, ne to, co je v databázi
+$editItems = $editSet ? ($editRows ?? setItems($editId)) : [];
 
 $sets = listSets();
 
@@ -95,7 +132,7 @@ include __DIR__ . '/../includes/header.php';
         <table class="data-table" style="margin-top:1rem">
             <thead><tr><th>#</th><th>Zadání</th><th>Odpověď</th><th>Možnosti</th></tr></thead>
             <tbody>
-            <?php foreach (array_slice($preview['items'], 0, 12) as $i => $it): ?>
+            <?php foreach ($preview['items'] as $i => $it): ?>
                 <tr>
                     <td><?= $i + 1 ?></td>
                     <td><?= htmlspecialchars($it['prompt']) ?></td>
@@ -105,9 +142,6 @@ include __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
             </tbody>
         </table>
-        <?php if (count($preview['items']) > 12): ?>
-        <div class="mistake-hint">… a dalších <?= count($preview['items']) - 12 ?> položek</div>
-        <?php endif; ?>
 
         <form method="post" style="margin-top:1rem">
             <input type="hidden" name="action" value="save">
@@ -177,6 +211,55 @@ include __DIR__ . '/../includes/header.php';
     </details>
 </section>
 
+<?php if ($editSet): ?>
+<section class="admin-card">
+    <div class="challenge-head">
+        <h2 class="section-title" style="margin:0">✎ <?= htmlspecialchars($editSet['title']) ?></h2>
+        <a href="<?= BASE_URL ?>/admin/sady.php" class="btn-secondary btn-sm">← zpět na sady</a>
+    </div>
+    <p class="mistake-hint">
+        <?= htmlspecialchars(setSubjectLabel($editSet['subject'])) ?>
+        · <?= htmlspecialchars(SET_KINDS[$editSet['kind']] ?? $editSet['kind']) ?>
+        · zdroj: <?= htmlspecialchars($editSet['source']) ?>
+        <?php if ($editSet['kind'] === 'doplnovacka'): ?><br>Mezeru k doplnění piš podtržítky: <code>______</code><?php endif; ?>
+        <br>Možnosti odděluj svislítkem: <code>plynném | kapalném | pevném</code>. Nech prázdné a u dvojic se dolosují ze sady.
+        <br>Smazat položku: zaškrtni <strong>✕</strong> na jejím řádku. Sada musí po uložení zůstat aspoň o čtyřech položkách.
+    </p>
+
+    <form method="post">
+        <input type="hidden" name="action" value="update_items">
+        <input type="hidden" name="set_id" value="<?= $editId ?>">
+        <table class="data-table" style="margin-top:1rem">
+            <thead><tr>
+                <th>#</th>
+                <th><?= $editSet['kind'] === 'dvojice' ? 'Zadání (a)' : 'Zadání' ?></th>
+                <th><?= $editSet['kind'] === 'dvojice' ? 'Odpověď (b)' : 'Odpověď' ?></th>
+                <th>Možnosti</th><th>✕</th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($editItems as $i => $it):
+                $opts = $it['options'] ?? null;
+                if (is_string($opts)) $opts = json_decode($opts, true);
+                $opts = implode(' | ', array_map('strval', (array)$opts)); ?>
+                <tr>
+                    <td style="color:var(--muted)"><?= $i + 1 ?></td>
+                    <td><textarea name="prompt[]" rows="2" class="form-input" style="font-size:.85rem;min-width:16rem"><?= htmlspecialchars((string)$it['prompt']) ?></textarea></td>
+                    <td><input type="text" name="answer[]" class="form-input" style="font-size:.85rem" value="<?= htmlspecialchars((string)$it['answer']) ?>"></td>
+                    <td><input type="text" name="options[]" class="form-input" style="font-size:.85rem" value="<?= htmlspecialchars($opts) ?>"></td>
+                    <td style="text-align:center">
+                        <input type="checkbox" name="drop[<?= $i ?>]" value="1" title="smazat položku">
+                        <input type="hidden" name="hint[]" value="<?= htmlspecialchars((string)($it['hint'] ?? '')) ?>">
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <button type="submit" class="btn-primary" style="margin-top:1rem">✔ Uložit změny</button>
+        <a href="<?= BASE_URL ?>/games/sada.php?id=<?= $editId ?>" class="btn-secondary btn-sm" style="margin-left:.5rem">Vyzkoušet ve hře →</a>
+    </form>
+</section>
+<?php endif; ?>
+
 <section class="admin-card">
     <h2 class="section-title">Nahrané sady (<?= count($sets) ?>)</h2>
     <?php if (!$sets): ?>
@@ -199,11 +282,14 @@ include __DIR__ . '/../includes/header.php';
                     <?php else: ?><span style="color:var(--muted)">–</span><?php endif; ?>
                 </td>
                 <td>
+                    <div class="admin-actions">
+                    <a href="?edit=<?= (int)$s['id'] ?>" class="btn-sm btn-sm-blue">Upravit</a>
                     <form method="post" onsubmit="return confirm('Opravdu smazat sadu <?= htmlspecialchars($s['title'], ENT_QUOTES) ?>?')">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
                         <button type="submit" class="btn-secondary btn-sm">Smazat</button>
                     </form>
+                    </div>
                 </td>
             </tr>
         <?php endforeach; ?>
