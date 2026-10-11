@@ -214,6 +214,70 @@ function saveSet(array $set, array $items, int $userId, int $jobId = 0): int {
     }
 }
 
+/**
+ * Z uložené sady složí zpátky JSON v tom tvaru, v jakém se sada nahrává.
+ *
+ * Díky tomu projde úprava položek přesně stejnou kontrolou jako import:
+ * jedna sada pravidel, ne dvoje.
+ *
+ * @param array<int, array{prompt:string, answer:string, options:?string, hint:?string}> $items
+ */
+function setPayloadFromItems(array $set, array $items): string {
+    $kind = (string)$set['kind'];
+    $out  = [];
+    foreach ($items as $it) {
+        $prompt = trim((string)($it['prompt'] ?? ''));
+        $answer = trim((string)($it['answer'] ?? ''));
+        if ($prompt === '' && $answer === '') continue;
+
+        $row = $kind === 'dvojice' ? ['a' => $prompt, 'b' => $answer]
+                                   : ['otazka' => $prompt, 'odpoved' => $answer];
+        $opts = $it['options'] ?? null;
+        if (is_string($opts)) $opts = json_decode($opts, true);
+        $opts = array_values(array_filter(array_map('trim', (array)$opts), fn($o) => $o !== ''));
+        if ($opts) $row['moznosti'] = $opts;
+        if (trim((string)($it['hint'] ?? '')) !== '') $row['napoveda'] = trim((string)$it['hint']);
+        $out[] = $row;
+    }
+
+    return (string)json_encode([
+        'predmet'  => (string)$set['subject'],
+        'rocnik'   => (int)$set['grade'],
+        'nazev'    => (string)$set['title'],
+        'zdroj'    => (string)$set['source'],
+        'typ'      => $kind,
+        'text'     => (string)($set['passage'] ?? ''),
+        'polozky'  => $out,
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+}
+
+/**
+ * Přepíše položky existující sady.
+ *
+ * Hlavička sady zůstává; mění se jen to, co je uvnitř. Staré položky mažeme
+ * a vkládáme nové, protože se můžou přečíslovat i ubýt.
+ */
+function replaceSetItems(int $setId, array $items): bool {
+    try {
+        $db = getDB();
+        $db->beginTransaction();
+        $db->prepare('DELETE FROM custom_set_items WHERE set_id = ?')->execute([$setId]);
+
+        $stmt = $db->prepare('INSERT INTO custom_set_items
+            (set_id, position, item_key, prompt, answer, options, hint) VALUES (?,?,?,?,?,?,?)');
+        foreach ($items as $it) {
+            $stmt->execute([$setId, $it['position'], $it['item_key'], $it['prompt'],
+                            $it['answer'], $it['options'], $it['hint']]);
+        }
+        $db->prepare('UPDATE custom_sets SET updated_at = ? WHERE id = ?')->execute([date('Y-m-d H:i:s'), $setId]);
+        $db->commit();
+        return true;
+    } catch (PDOException $e) {
+        if (isset($db) && $db->inTransaction()) $db->rollBack();
+        return false;
+    }
+}
+
 /** Jedna sada bez položek; null, když neexistuje */
 function getSet(int $id): ?array {
     try {
