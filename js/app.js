@@ -64,7 +64,7 @@ function renderReward(data, statusEl) {
         el.innerHTML = m.is_record
             ? '<strong>🏅 Nový rekord: ' + m.time + '!</strong>' +
               (m.count > 1 ? '<div class="levelup-sub">nejmíň chyb a nejrychleji ze všech tvých ' + m.count + ' maratonů</div>' : '')
-            : '⏱ Čas ' + m.time + (m.best ? ' · tvůj rekord ' + m.best : '');
+            : '⏱ Čas ' + m.time + (m.unanswered ? ' · nestihnuto ' + m.unanswered : '') + (m.best ? ' · tvůj rekord ' + m.best : '');
         anchorEl.after(el);
         anchorEl = el;
     }

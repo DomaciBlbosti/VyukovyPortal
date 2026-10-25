@@ -849,6 +849,12 @@ a:hover { text-decoration: underline; }
 .math-dots-many .math-dot { width: 7px; height: 7px; }
 .math-hint { min-height: 1.2em; font-family: var(--font-mono); font-size: .78rem; color: var(--muted); margin-bottom: .4rem; }
 .marathon-record { border-color: var(--accent); }
+.marathon-cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .75rem; }
+.marathon-cat-group { border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem .85rem .7rem; margin: 0; }
+.marathon-cat-group legend { font-family: var(--font-mono); font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 .3rem; display: flex; gap: .5rem; align-items: center; }
+.marathon-cat-group label { display: block; font-size: .875rem; padding: .18rem 0; }
+.marathon-pick { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.marathon-pick .filter-btn small { display: block; font-size: .7rem; color: var(--muted); font-weight: normal; }
 .marathon-result { margin: .75rem 0; padding: .6rem .9rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted); font-size: .9rem; }
 
 /* ─── Matematika — výběr ze 6 možností (mřížka 3×2) ─── */

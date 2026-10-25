@@ -39,7 +39,7 @@ function renderChallengeCard(array $c): void { ?>
                 <?= $s['done'] ? '✔' : '▢' ?> <?= htmlspecialchars($s['label']) ?>
             </span>
             <span class="challenge-step-state">
-                <?php if ($s['game_type'] === 'math_marathon' && ($rec = marathonRecord((int)$GLOBALS['user']['id']))['best']): ?>
+                <?php if ($s['game_type'] === 'math_marathon' && ($rec = marathonRecord((int)$GLOBALS['user']['id'], (string)$s['topic']))['best']): ?>
                 🏅 <?= htmlspecialchars(marathonLabel($rec['best'])) ?> ·
                 <?php endif; ?>
                 <?= $s['done_rounds'] ?>/<?= $s['rounds'] ?>× · min <?= (int)$s['min_accuracy'] ?> %

@@ -68,9 +68,15 @@ function catalogTasks(): array {
 
     // ── Maraton: sto příkladů ze všech témat ročníku, na čas. Nemá varianty —
     //    co se v něm počítá, určuje ročník dítěte, ne rodič.
-    $c['math_marathon'] = ['label' => 'Matematický maraton', 'icon' => '🏃',
-                           'items' => ['' => ['label' => '100 příkladů ze všech témat, na čas',
-                                              'url'   => $base . '/games/maraton.php']]];
+    require_once __DIR__ . '/marathon.php';
+    $items = ['' => ['label' => '100 příkladů ze všech témat ročníku', 'url' => $base . '/games/maraton.php']];
+    foreach (marathonPresets() as $p) {
+        $items[(string)$p['id']] = [
+            'label' => 'Sestava: ' . $p['title'] . ' (' . marathonPresetMeta($p) . ')',
+            'url'   => $base . '/games/maraton.php?sestava=' . (int)$p['id'],
+        ];
+    }
+    $c['math_marathon'] = ['label' => 'Matematický maraton', 'icon' => '🏃', 'items' => $items];
 
     // ── Čeština: pravopisné sady ──
     $items = [];

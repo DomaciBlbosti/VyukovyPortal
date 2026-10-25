@@ -23,6 +23,9 @@
     const resultsPanel  = document.getElementById('resultsPanel');
 
     let current = 0, correct = 0, wrong = 0;
+    // Časový limit (sestava maratonu): odpočítává se a po vypršení kolo končí
+    const TIME_LIMIT = typeof MATH_TIME_LIMIT !== 'undefined' ? Number(MATH_TIME_LIMIT) : 0;
+    let timedOut = false;
     let startTime = null, timerInt = null;
     const answers = []; // pro chybovník — co dítěti šlo a co ne
     const questionWrapper = document.querySelector('.math-question-wrapper');
@@ -70,7 +73,13 @@
         input.focus();
         startTime = Date.now();
         timerInt  = setInterval(() => {
-            document.getElementById('statTime').textContent = Math.floor((Date.now() - startTime) / 1000);
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            if (TIME_LIMIT > 0) {
+                document.getElementById('statTime').textContent = Math.max(0, TIME_LIMIT - elapsed);
+                if (elapsed >= TIME_LIMIT) { timedOut = true; finishGame(); }
+            } else {
+                document.getElementById('statTime').textContent = elapsed;
+            }
         }, 500);
         showQuestion();
     });
@@ -109,9 +118,13 @@
     function finishGame() {
         clearInterval(timerInt);
         input.disabled = true;
+        current = Math.min(current, examples.length);
         if (submitBtn) submitBtn.style.display = 'none';
-        const elapsed  = (Date.now() - startTime) / 1000;
-        const accuracy = Math.round(correct / examples.length * 100);
+        if (finishGame.done) return;   // limit i poslední odpověď můžou přijít naráz
+        finishGame.done = true;
+        const elapsed    = timedOut ? TIME_LIMIT : (Date.now() - startTime) / 1000;
+        const unanswered = examples.length - current;
+        const accuracy   = Math.round(correct / examples.length * 100);
         // WPM ekvivalent: každé číslo = 1 "slovo"
         const wpm = Math.round(correct / (elapsed / 60));
 
@@ -119,6 +132,12 @@
         document.getElementById('resFinalErrors').textContent   = wrong;
         document.getElementById('resFinalAccuracy').textContent = accuracy + '%';
         document.getElementById('resFinalTime').textContent     = Math.round(elapsed) + 's';
+        if (timedOut) {
+            const note = document.createElement('p');
+            note.className = 'marathon-result';
+            note.textContent = '⏰ Čas vypršel — nestihnuto ' + unanswered + ' z ' + examples.length + ' příkladů (počítají se jako chyby).';
+            document.querySelector('#resultsPanel .results-stats').after(note);
+        }
 
         gameContainer.style.display = 'none';
         resultsPanel.style.display  = 'block';
@@ -130,6 +149,7 @@
         fd.append('duration', Math.round(elapsed));
         fd.append('chars_typed', correct);
         fd.append('errors', wrong);
+        fd.append('unanswered', unanswered);
         fd.append('text_snippet', typeof MATH_SET !== 'undefined' ? MATH_SET : 'matematika');
         fd.append('topic', MATH_TOPIC);
         fd.append('variant', MATH_VARIANT);

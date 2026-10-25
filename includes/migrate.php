@@ -79,6 +79,7 @@ function runMigrations(PDO $db): array {
         ['ocr_jobs',  'subject',     "ALTER TABLE ocr_jobs ADD COLUMN subject VARCHAR(40) NOT NULL DEFAULT ''"],
         ['ocr_jobs',  'grade',       'ALTER TABLE ocr_jobs ADD COLUMN grade TINYINT NOT NULL DEFAULT 0'],
         ['custom_sets', 'job_id',    'ALTER TABLE custom_sets ADD COLUMN job_id INT NULL'],
+        ['game_sessions', 'variant', "ALTER TABLE game_sessions ADD COLUMN variant VARCHAR(120) NOT NULL DEFAULT ''"],
     ] as [$table, $column, $sql]) {
         try {
             $db->query("SELECT $column FROM $table LIMIT 1");
