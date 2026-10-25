@@ -140,8 +140,6 @@ $taskNote = match (true) {
     $topic === 'zlomky'    && $variant === 'scitani' => 'Sečti nebo odečti zlomky; výsledek zapiš v základním tvaru.',
     $topic === 'zlomky'    && $variant === 'prevod'  => 'Převeď zlomek na desetinné číslo.',
     $topic === 'zlomky'                              => 'Vypočítej část z celku.',
-    $topic === 'mocniny'   && $variant === 'odmocnina' => 'Najdi číslo, které umocněné na druhou dá zadané.',
-    $topic === 'mocniny'                             => 'Vypočítej druhou mocninu.',
     $topic === 'deleni'    && $variant === 'se'      => 'Vyděl se zbytkem.',
     $topic === 'delitelnost' && $variant === 'nsd'   => 'Najdi největší společný dělitel obou čísel.',
     $topic === 'delitelnost'                         => 'Spočítej, kolik má číslo dělitelů (včetně 1 a sebe sama).',

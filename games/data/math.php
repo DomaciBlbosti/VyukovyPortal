@@ -47,10 +47,11 @@ function mathTopics(): array {
             'label'    => 'Desetinná čísla',
             'icon'     => '🔟',
             'grades'   => [5,6,7,8,9],
-            'variants' => ['scitani'         => 'sčítání a odčítání',
-                           'scitani2'        => 'sčítání a odčítání se setinami',
-                           'nasobeni'        => 'násobení a dělení 10, 100',
-                           'nasobeni_cislem' => 'násobení a dělení jednociferným číslem'],
+            // Násobí a dělí se jen deseti a stem — posun čárky je z hlavy,
+            // 25,8 ÷ 6 už ne
+            'variants' => ['scitani'  => 'sčítání a odčítání',
+                           'scitani2' => 'sčítání a odčítání se setinami',
+                           'nasobeni' => 'násobení a dělení 10, 100'],
         ],
 
         'zlomky' => [
@@ -68,13 +69,6 @@ function mathTopics(): array {
             'icon'     => '🔢',
             'grades'   => [6,7,8,9],
             'variants' => ['prvocislo' => 'prvočísla', 'nsd' => 'největší společný dělitel'],
-        ],
-
-        'mocniny' => [
-            'label'    => 'Mocniny a odmocniny',
-            'icon'     => '²',
-            'grades'   => [6,7,8,9],
-            'variants' => ['druha' => 'druhá mocnina do 20²', 'odmocnina' => 'odmocnina do √400'],
         ],
 
     ];
@@ -110,7 +104,6 @@ function generateMathExamples(string $topic, string $variant, int $count = 15): 
             'desetinna'       => mathExDesetinna($variant),
             'zlomky'          => mathExZlomky($variant),
             'delitelnost'     => mathExDelitelnost($variant),
-            'mocniny'         => mathExMocniny($variant),
             default           => mathExPlusMinus($variant),
         };
         // Nechceme dvakrát stejné zadání za sebou ani v jedné sadě
@@ -180,15 +173,6 @@ function mathExDeleni(string $variant): array {
 function mathExDesetinna(string $variant): array {
     // Počítáme v desetinách/setinách jako s celými čísly a převádíme až na
     // konci — jinak by 0,1 + 0,2 dalo 0,30000000000000004 a rozhodlo o chybě.
-    if ($variant === 'nasobeni_cislem') {
-        $k = rand(2, 9);
-        $tenths = mathTenths();                          // 2,5 × 4
-        if (rand(0, 1)) {
-            return ['q' => mathFmt($tenths / 10) . " × $k =", 'a' => mathFmt($tenths * $k / 10)];
-        }
-        // výsledek má jedno desetinné místo
-        return ['q' => mathFmt($tenths * $k / 10) . " ÷ $k =", 'a' => mathFmt($tenths / 10)];
-    }
     if ($variant === 'scitani2') {
         $a = rand(1, 999);                               // setiny: 3,25
         $b = mathTenths() * 10;                          // desetiny: 1,5 — obojí najednou už není z hlavy
@@ -270,14 +254,6 @@ function mathFrac(int $num, int $den): string {
     $g = mathGcd($num, $den);
     $num = intdiv($num, $g); $den = intdiv($den, $g);
     return $den === 1 ? (string)$num : "$num/$den";
-}
-
-function mathExMocniny(string $variant): array {
-    $n = rand(2, 20);
-    if ($variant === 'odmocnina') {
-        return ['q' => '√' . ($n * $n) . ' =', 'a' => (string)$n];
-    }
-    return ['q' => $n . '² =', 'a' => (string)($n * $n)];
 }
 
 function mathExDelitelnost(string $variant): array {
