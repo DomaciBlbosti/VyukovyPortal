@@ -19,6 +19,11 @@ require_once __DIR__ . '/../includes/marathon.php';
 
 const MARATHON_COUNT = 100;
 
+// Sestava: bez ní jede „vše pro ročník" (klíč ''), jinak to, co rodič poskládal
+$presetId = (int)($_GET['sestava'] ?? $_POST['sestava'] ?? 0);
+$preset   = $presetId ? getMarathonPreset($presetId) : null;
+$variant  = $preset ? (string)$preset['id'] : '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
     // Odpovědi roztřídíme podle sady, kterou nese klíč příkladu — do chybovníku
@@ -33,25 +38,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
         $groups[$g]['items'][] = $item;
     }
 
+    // Nestihnuté příklady (vypršel limit) se počítají jako chyby — jinak by
+    // rekord držel ten, kdo stihl nejmíň a nic nespletl
+    $unanswered = max(0, intval($_POST['unanswered'] ?? 0));
     $result = saveGameResult([
         'game_type'         => 'math_marathon',
         'answers_game_type' => 'math',
+        'variant'           => $variant,
+        'topic'             => $variant,     // krok výzvy míří na konkrétní sestavu, nebo na jakýkoli maraton
         'wpm'               => floatval($_POST['wpm']       ?? 0),
         'accuracy'          => floatval($_POST['accuracy']  ?? 0),
         'duration_seconds'  => intval($_POST['duration']    ?? 0),
         'chars_typed'       => intval($_POST['chars_typed'] ?? 0),
-        'errors'            => intval($_POST['errors']      ?? 0),
-        'text_snippet'      => 'Matematický maraton',
+        'errors'            => intval($_POST['errors']      ?? 0) + $unanswered,
+        'text_snippet'      => 'Matematický maraton' . ($preset ? ' — ' . $preset['title'] : ''),
         'answer_groups'     => array_values($groups),
     ]);
 
     // Rekord se pozná až po uložení: je to tohle kolo?
-    $rec = marathonRecord((int)getCurrentUser()['id']);
+    $rec = marathonRecord((int)getCurrentUser()['id'], $variant);
     $result['marathon'] = [
-        'time'      => marathonTime(intval($_POST['duration'] ?? 0)),
-        'is_record' => $rec['best'] && (int)$result['id'] === $rec['best']['id'],
-        'best'      => $rec['best'] ? marathonLabel($rec['best']) : '',
-        'count'     => $rec['count'],
+        'time'       => marathonTime(intval($_POST['duration'] ?? 0)),
+        'is_record'  => $rec['best'] && (int)$result['id'] === $rec['best']['id'],
+        'best'       => $rec['best'] ? marathonLabel($rec['best']) : '',
+        'count'      => $rec['count'],
+        'unanswered' => $unanswered,
     ];
     echo json_encode($result);
     exit;
@@ -61,33 +72,55 @@ $user  = getCurrentUser();
 $grade = getUserGrade();
 $mode  = ($_GET['mode'] ?? 'input') === 'choice' ? 'choice' : 'input';
 
-$examples = generateMathMarathon($grade, MARATHON_COUNT);
+if ($preset) {
+    $examples  = generateMathMarathonFrom($preset['categories'], $preset['count']);
+    $cats      = mathMarathonCategories();
+    $topicsIn  = array_map(fn($k) => $cats[$k]['label'] ?? $k, $preset['categories']);
+    $timeLimit = $preset['time_limit'];
+} else {
+    $examples  = generateMathMarathon($grade, MARATHON_COUNT);
+    $topicsIn  = [];
+    foreach (mathMarathonPairs($grade) as [$t, $v]) $topicsIn[$t] = mathTopics()[$t]['label'];
+    $timeLimit = 0;
+}
 if ($mode === 'choice') {
     foreach ($examples as &$ex) $ex['choices'] = mathChoices($ex['a']);
     unset($ex);
 }
-$topicsIn = [];
-foreach (mathMarathonPairs($grade) as [$t, $v]) $topicsIn[$t] = mathTopics()[$t]['label'];
 
-$record = marathonRecord((int)$user['id']);
+$presets = marathonPresets();
+$record  = marathonRecord((int)$user['id'], $variant);
+$qs      = $preset ? '&sestava=' . (int)$preset['id'] : '';
 
 $pageTitle = 'Matematický maraton';
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1>🏃 Matematický <span class="accent">maraton</span></h1>
-    <p class="page-subtitle"><?= MARATHON_COUNT ?> příkladů ze všech témat, na čas</p>
+    <h1>🏃 Matematický <span class="accent">maraton</span><?= $preset ? ' — ' . htmlspecialchars($preset['title']) : '' ?></h1>
+    <p class="page-subtitle"><?= count($examples) ?> příkladů<?= $preset ? '' : ' ze všech témat' ?><?= $timeLimit ? ', limit ' . marathonTime($timeLimit) : ', na čas' ?></p>
 </div>
 
 <div class="mode-tabs">
-    <a href="?mode=input"  class="mode-tab <?= $mode==='input' ?'active':'' ?>">⌨ Psaní výsledku</a>
-    <a href="?mode=choice" class="mode-tab <?= $mode==='choice'?'active':'' ?>">🎯 Výběr z možností</a>
+    <a href="?mode=input<?= $qs ?>"  class="mode-tab <?= $mode==='input' ?'active':'' ?>">⌨ Psaní výsledku</a>
+    <a href="?mode=choice<?= $qs ?>" class="mode-tab <?= $mode==='choice'?'active':'' ?>">🎯 Výběr z možností</a>
 </div>
 
+<?php if ($presets): ?>
+<div class="marathon-pick">
+    <a href="?mode=<?= $mode ?>" class="filter-btn <?= $preset ? '' : 'active' ?>">Vše pro můj ročník<small><?= MARATHON_COUNT ?> příkladů</small></a>
+    <?php foreach ($presets as $p): ?>
+    <a href="?mode=<?= $mode ?>&amp;sestava=<?= (int)$p['id'] ?>" class="filter-btn <?= $preset && $preset['id'] === $p['id'] ? 'active' : '' ?>">
+        <?= htmlspecialchars($p['title']) ?><small><?= htmlspecialchars(marathonPresetMeta($p)) ?></small>
+    </a>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <div class="lesson-hint" style="margin-bottom:1rem">
-    📌 Témata<?= $grade > 0 ? ' pro ' . $grade . '. třídu' : '' ?>: <?= htmlspecialchars(implode(' · ', $topicsIn)) ?>.
+    📌 <?= $preset ? 'Co se počítá' : 'Témata' . ($grade > 0 ? ' pro ' . $grade . '. třídu' : '') ?>: <?= htmlspecialchars(implode(' · ', $topicsIn)) ?>.
     Příklady se střídají, u každého je napsáno, jak odpověď zapsat.
+    <?php if ($timeLimit): ?><br>⏰ Na celý maraton máš <strong><?= marathonTime($timeLimit) ?></strong>. Co nestihneš, počítá se jako chyba.<?php endif; ?>
 </div>
 
 <?php if ($record['best']): ?>
@@ -105,7 +138,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="game-stat"><span class="gstat-value" id="statScore">0</span><span class="gstat-label">správně</span></div>
         <div class="game-stat"><span class="gstat-value" id="statErrors">0</span><span class="gstat-label">chyb</span></div>
         <div class="game-stat"><span class="gstat-value" id="statRemain"><?= count($examples) ?></span><span class="gstat-label">zbývá</span></div>
-        <div class="game-stat"><span class="gstat-value" id="statTime">0</span><span class="gstat-label">sekund</span></div>
+        <div class="game-stat"><span class="gstat-value" id="statTime"><?= $timeLimit ?: 0 ?></span><span class="gstat-label"><?= $timeLimit ? 'zbývá s' : 'sekund' ?></span></div>
     </div>
 
     <div class="math-question-wrapper">
@@ -148,7 +181,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="result-item"><div class="result-value" id="resFinalTime">–</div><div class="result-label">Čas</div></div>
     </div>
     <div class="results-actions">
-        <a href="?mode=<?= $mode ?>" class="btn-primary">↺ Běžet znovu</a>
+        <a href="?mode=<?= $mode ?><?= $qs ?>" class="btn-primary">↺ Běžet znovu</a>
         <a href="<?= BASE_URL ?>/dashboard.php" class="btn-secondary">← Rozcestník</a>
     </div>
     <div id="saveStatus" class="save-status"></div>
@@ -159,7 +192,8 @@ const MATH_EXAMPLES = <?= json_encode(array_values($examples), JSON_UNESCAPED_UN
 const MATH_SET      = 'Matematický maraton';
 const MATH_TOPIC    = '';
 const MATH_VARIANT  = '';
-const SAVE_URL      = '<?= BASE_URL ?>/games/maraton.php';
+const MATH_TIME_LIMIT = <?= (int)$timeLimit ?>;   // sekund, 0 = bez limitu
+const SAVE_URL      = '<?= BASE_URL ?>/games/maraton.php<?= $preset ? '?sestava=' . (int)$preset['id'] : '' ?>';
 </script>
 <?php if ($mode === 'input'): ?>
 <script src="<?= asset_url('/js/math_game.js') ?>"></script>

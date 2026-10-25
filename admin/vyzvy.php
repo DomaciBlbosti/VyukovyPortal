@@ -128,6 +128,7 @@ function taskOptions(string $selected = ''): void {
         <p class="page-subtitle">Sady úkolů, které dětem zadáš k procvičení</p>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="<?= BASE_URL ?>/admin/maraton.php" class="btn-secondary">🏃 Sestavy maratonu</a>
         <a href="<?= BASE_URL ?>/admin/index.php" class="btn-secondary">👥 Uživatelé</a>
         <a href="<?= BASE_URL ?>/admin/deti.php" class="btn-secondary">👨‍👩‍👧 Přehled dětí</a>
     </div>

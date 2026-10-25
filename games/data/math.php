@@ -92,11 +92,11 @@ function mathGcd(int $a, int $b): int {
  * Vygeneruje příklady pro téma a variantu.
  * @return array<array{q:string, a:string}>
  */
-function generateMathExamples(string $topic, string $variant, int $count = 15): array {
+function generateMathExamples(string $topic, string $variant, int $count = 15, string $op = ''): array {
     $out = [];
     $guard = 0;
 
-    while (count($out) < $count && $guard++ < $count * 20) {
+    while (count($out) < $count && $guard++ < $count * 40) {
         $ex = match ($topic) {
             'nasobilka'       => mathExNasobilka($variant),
             'velka_nasobilka' => mathExVelkaNasobilka($variant),
@@ -106,6 +106,9 @@ function generateMathExamples(string $topic, string $variant, int $count = 15): 
             'delitelnost'     => mathExDelitelnost($variant),
             default           => mathExPlusMinus($variant),
         };
+        // Sestava maratonu umí chtít jen jednu operaci z varianty (sčítání bez
+        // odčítání, násobení bez dělení) — generátor obě střídá, tak vybíráme
+        if ($ex && $op !== '' && !str_contains($ex['q'], $op)) continue;
         // Nechceme dvakrát stejné zadání za sebou ani v jedné sadě
         if ($ex && !in_array($ex['q'], array_column($out, 'q'), true)) {
             $out[] = $ex;
@@ -492,6 +495,81 @@ function generateMathMarathon(int $grade, int $count = 100): array {
                 $ex['hint']    = mathAnswerHint($topic, $variant);
                 $all[] = $ex;
             }
+        }
+    }
+    shuffle($all);
+    return array_slice($all, 0, $count);
+}
+
+/**
+ * Kategorie pro sestavy maratonu — jemnější než témata ve hře. Rodič je
+ * zapíná jednotlivě: sčítání zvlášť od odčítání, násobení zvlášť od dělení.
+ * Každá kategorie je téma + varianta + případně jedna operace z ní.
+ *
+ * @return array<string, array{label:string, group:string, topic:string, variant:string, op:string}>
+ */
+function mathMarathonCategories(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $t = mathTopics();
+    $def = [
+        // klíč                téma               varianta      operace  popisek
+        ['plus_20',           'plus_minus',      '20',         '+', 'sčítání do 20'],
+        ['minus_20',          'plus_minus',      '20',         '−', 'odčítání do 20'],
+        ['plus_100',          'plus_minus',      '100',        '+', 'sčítání do 100'],
+        ['minus_100',         'plus_minus',      '100',        '−', 'odčítání do 100'],
+        ['plus_1000',         'plus_minus',      '1000',       '+', 'sčítání do 1000'],
+        ['minus_1000',        'plus_minus',      '1000',       '−', 'odčítání do 1000'],
+        ['mala_krat',         'nasobilka',       'mix',        '×', 'malá násobilka — násobení'],
+        ['mala_deleno',       'nasobilka',       'mix',        '÷', 'malá násobilka — dělení'],
+        ['velka_krat',        'velka_nasobilka', 'mix',        '×', 'velká násobilka — násobení (11–20)'],
+        ['velka_deleno',      'velka_nasobilka', 'mix',        '÷', 'velká násobilka — dělení'],
+        ['deleni_bez',        'deleni',          'bez',        '',  'dělení beze zbytku'],
+        ['deleni_se',         'deleni',          'se',         '',  'dělení se zbytkem'],
+        ['des_plus',          'desetinna',       'scitani',    '+', 'desetinná čísla — sčítání'],
+        ['des_minus',         'desetinna',       'scitani',    '−', 'desetinná čísla — odčítání'],
+        ['des_plus2',         'desetinna',       'scitani2',   '+', 'desetinná čísla — sčítání se setinami'],
+        ['des_minus2',        'desetinna',       'scitani2',   '−', 'desetinná čísla — odčítání se setinami'],
+        ['des_krat10',        'desetinna',       'nasobeni',   '×', 'desetinné číslo × 10, 100'],
+        ['des_deleno10',      'desetinna',       'nasobeni',   '÷', 'desetinné číslo ÷ 10, 100'],
+        ['zl_cast',           'zlomky',          'cast',       '',  'zlomky — část z celku'],
+        ['zl_kraceni',        'zlomky',          'kraceni',    '',  'zlomky — krácení'],
+        ['zl_plus',           'zlomky',          'scitani',    '+', 'zlomky — sčítání (stejný jmenovatel)'],
+        ['zl_minus',          'zlomky',          'scitani',    '−', 'zlomky — odčítání (stejný jmenovatel)'],
+        ['zl_prevod',         'zlomky',          'prevod',     '',  'zlomek na desetinné číslo'],
+        ['delit_delitele',    'delitelnost',     'prvocislo',  '',  'kolik má číslo dělitelů'],
+        ['delit_nsd',         'delitelnost',     'nsd',        '',  'největší společný dělitel'],
+    ];
+    $cache = [];
+    foreach ($def as [$key, $topic, $variant, $op, $label]) {
+        if (!isset($t[$topic]['variants'][$variant])) continue;   // kdyby téma zmizelo, kategorie s ním
+        $cache[$key] = ['label' => $label, 'group' => $t[$topic]['label'], 'topic' => $topic, 'variant' => $variant, 'op' => $op];
+    }
+    return $cache;
+}
+
+/**
+ * Maraton ze zapnutých kategorií, rovným dílem a zamíchaný. Příklady nesou
+ * téma a variantu jako v běžné hře, takže chyby padají ke správné sadě.
+ *
+ * @param array<string> $keys klíče z mathMarathonCategories()
+ */
+function generateMathMarathonFrom(array $keys, int $count): array {
+    $cats = mathMarathonCategories();
+    $keys = array_values(array_filter(array_unique($keys), fn($k) => isset($cats[$k])));
+    if (!$keys) return [];
+
+    $per = (int)ceil($count / count($keys));
+    $all = [];
+    foreach ($keys as $k) {
+        $c = $cats[$k];
+        foreach (generateMathExamples($c['topic'], $c['variant'], $per, $c['op']) as $ex) {
+            $ex['topic']   = $c['topic'];
+            $ex['variant'] = $c['variant'];
+            $ex['key']     = mathItemKey($c['topic'], $c['variant'], $ex['q']);
+            $ex['hint']    = mathAnswerHint($c['topic'], $c['variant']);
+            $all[] = $ex;
         }
     }
     shuffle($all);

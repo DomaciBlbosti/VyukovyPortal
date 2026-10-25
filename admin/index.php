@@ -109,6 +109,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <a href="<?= BASE_URL ?>/admin/vyzvy.php" class="btn-secondary">🎯 Výzvy</a>
+        <a href="<?= BASE_URL ?>/admin/maraton.php" class="btn-secondary">🏃 Sestavy maratonu</a>
         <a href="<?= BASE_URL ?>/admin/sady.php" class="btn-secondary">📚 Sady z učebnic</a>
         <a href="<?= BASE_URL ?>/admin/galerie.php" class="btn-secondary">🔍 Skenování učebnic</a>
         <a href="<?= BASE_URL ?>/admin/deti.php" class="btn-secondary">👨‍👩‍👧 Přehled dětí</a>

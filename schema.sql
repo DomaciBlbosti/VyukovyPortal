@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS game_sessions (
     chars_typed      INT          NOT NULL DEFAULT 0,
     errors           INT          NOT NULL DEFAULT 0,
     text_snippet     TEXT,
+    variant          VARCHAR(120) NOT NULL DEFAULT '',
     played_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_user_game (user_id, game_type),
@@ -102,6 +103,16 @@ CREATE TABLE IF NOT EXISTS challenge_assignments (
     INDEX idx_user (user_id, completed_at),
     FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sestavy matematického maratonu: které kategorie, kolik příkladů, jaký limit
+CREATE TABLE IF NOT EXISTS marathon_presets (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    title       VARCHAR(120) NOT NULL,
+    categories  TEXT         NOT NULL,
+    count       INT          NOT NULL DEFAULT 100,
+    time_limit  INT          NOT NULL DEFAULT 0,
+    created_at  DATETIME     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS challenge_progress (

@@ -78,11 +78,7 @@ function saveGameSession(array $data): int {
     require_once __DIR__ . '/levels.php';
     $db   = getDB();
     $user = getCurrentUser();
-    $stmt = $db->prepare('
-        INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet, points)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ');
-    $stmt->execute([
+    $row = [
         $user['id'],
         $data['game_type']        ?? 'classic',
         $data['wpm']              ?? 0,
@@ -92,7 +88,23 @@ function saveGameSession(array $data): int {
         $data['errors']           ?? 0,
         $data['text_snippet']     ?? '',
         calculatePoints($data),
-    ]);
+    ];
+    // „variant" říká, co přesně se hrálo (u maratonu sestava) — rekordy se
+    // pak drží zvlášť pro každou. Sloupec přidává migrace; než proběhne,
+    // uložíme kolo bez něj, ať hra nespadne.
+    try {
+        $stmt = $db->prepare('
+            INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet, points, variant)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $stmt->execute([...$row, mb_substr((string)($data['variant'] ?? ''), 0, 120)]);
+    } catch (PDOException $e) {
+        $stmt = $db->prepare('
+            INSERT INTO game_sessions (user_id, game_type, wpm, accuracy, duration_seconds, chars_typed, errors, text_snippet, points)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $stmt->execute($row);
+    }
     return (int)$db->lastInsertId();
 }
 
