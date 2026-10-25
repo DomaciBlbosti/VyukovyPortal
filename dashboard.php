@@ -82,6 +82,15 @@ $categories = [
                 'color'       => 'blue',
                 'available'   => true,
             ],
+            [
+                'id'          => 'math_marathon',
+                'title'       => 'Matematický maraton',
+                'icon'        => '🏃',
+                'description' => '100 příkladů ze všech témat tvého ročníku, na čas. Překonáš svůj rekord?',
+                'url'         => BASE_URL . '/games/maraton.php',
+                'color'       => 'blue',
+                'available'   => true,
+            ],
         ],
     ],
     [

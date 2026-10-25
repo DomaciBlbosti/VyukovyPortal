@@ -27,6 +27,15 @@ function mathTopics(): array {
                            '7'=>'řada 7','8'=>'řada 8','9'=>'řada 9','10'=>'řada 10','mix'=>'celá násobilka'],
         ],
 
+        'velka_nasobilka' => [
+            'label'    => 'Velká násobilka',
+            'icon'     => '✖️',
+            'grades'   => [5,6,7,8,9],
+            // 11–20 krát jednociferné — ještě se to dá spočítat z hlavy
+            // rozkladem (17 × 6 = 10 × 6 + 7 × 6), násobit 11–20 mezi sebou už ne
+            'variants' => ['11_15' => 'řady 11–15', '16_20' => 'řady 16–20', 'mix' => 'celá velká násobilka'],
+        ],
+
         'deleni' => [
             'label'    => 'Dělení se zbytkem',
             'icon'     => '➗',
@@ -38,14 +47,20 @@ function mathTopics(): array {
             'label'    => 'Desetinná čísla',
             'icon'     => '🔟',
             'grades'   => [5,6,7,8,9],
-            'variants' => ['scitani' => 'sčítání a odčítání', 'nasobeni' => 'násobení a dělení 10, 100'],
+            'variants' => ['scitani'         => 'sčítání a odčítání',
+                           'scitani2'        => 'sčítání a odčítání se setinami',
+                           'nasobeni'        => 'násobení a dělení 10, 100',
+                           'nasobeni_cislem' => 'násobení a dělení jednociferným číslem'],
         ],
 
         'zlomky' => [
             'label'    => 'Zlomky',
             'icon'     => '½',
             'grades'   => [5,6,7,8,9],
-            'variants' => ['cast' => 'část z celku', 'kraceni' => 'krácení zlomků'],
+            'variants' => ['cast'    => 'část z celku',
+                           'kraceni' => 'krácení zlomků',
+                           'scitani' => 'sčítání a odčítání se stejným jmenovatelem',
+                           'prevod'  => 'zlomek na desetinné číslo'],
         ],
 
         'delitelnost' => [
@@ -53,6 +68,13 @@ function mathTopics(): array {
             'icon'     => '🔢',
             'grades'   => [6,7,8,9],
             'variants' => ['prvocislo' => 'prvočísla', 'nsd' => 'největší společný dělitel'],
+        ],
+
+        'mocniny' => [
+            'label'    => 'Mocniny a odmocniny',
+            'icon'     => '²',
+            'grades'   => [6,7,8,9],
+            'variants' => ['druha' => 'druhá mocnina do 20²', 'odmocnina' => 'odmocnina do √400'],
         ],
 
     ];
@@ -82,12 +104,14 @@ function generateMathExamples(string $topic, string $variant, int $count = 15): 
 
     while (count($out) < $count && $guard++ < $count * 20) {
         $ex = match ($topic) {
-            'nasobilka'   => mathExNasobilka($variant),
-            'deleni'      => mathExDeleni($variant),
-            'desetinna'   => mathExDesetinna($variant),
-            'zlomky'      => mathExZlomky($variant),
-            'delitelnost' => mathExDelitelnost($variant),
-            default       => mathExPlusMinus($variant),
+            'nasobilka'       => mathExNasobilka($variant),
+            'velka_nasobilka' => mathExVelkaNasobilka($variant),
+            'deleni'          => mathExDeleni($variant),
+            'desetinna'       => mathExDesetinna($variant),
+            'zlomky'          => mathExZlomky($variant),
+            'delitelnost'     => mathExDelitelnost($variant),
+            'mocniny'         => mathExMocniny($variant),
+            default           => mathExPlusMinus($variant),
         };
         // Nechceme dvakrát stejné zadání za sebou ani v jedné sadě
         if ($ex && !in_array($ex['q'], array_column($out, 'q'), true)) {
@@ -129,6 +153,18 @@ function mathExNasobilka(string $variant): array {
         : ['q' => "$b × $row =", 'a' => (string)($row * $b)];
 }
 
+function mathExVelkaNasobilka(string $variant): array {
+    [$lo, $hi] = match ($variant) { '11_15' => [11, 15], '16_20' => [16, 20], default => [11, 20] };
+    $row = rand($lo, $hi);
+    $b   = rand(2, 9);                                   // ×1 a ×10 nic neprocvičí
+    if (rand(0, 2) === 0) {
+        return ['q' => ($row * $b) . " ÷ $row =", 'a' => (string)$b];
+    }
+    return rand(0, 1)
+        ? ['q' => "$row × $b =", 'a' => (string)($row * $b)]
+        : ['q' => "$b × $row =", 'a' => (string)($row * $b)];
+}
+
 function mathExDeleni(string $variant): array {
     $divisor = rand(2, 9);
     $result  = rand(2, 20);
@@ -142,6 +178,26 @@ function mathExDeleni(string $variant): array {
 }
 
 function mathExDesetinna(string $variant): array {
+    // Počítáme v desetinách/setinách jako s celými čísly a převádíme až na
+    // konci — jinak by 0,1 + 0,2 dalo 0,30000000000000004 a rozhodlo o chybě.
+    if ($variant === 'nasobeni_cislem') {
+        $k = rand(2, 9);
+        $tenths = mathTenths();                          // 2,5 × 4
+        if (rand(0, 1)) {
+            return ['q' => mathFmt($tenths / 10) . " × $k =", 'a' => mathFmt($tenths * $k / 10)];
+        }
+        // výsledek má jedno desetinné místo
+        return ['q' => mathFmt($tenths * $k / 10) . " ÷ $k =", 'a' => mathFmt($tenths / 10)];
+    }
+    if ($variant === 'scitani2') {
+        $a = rand(1, 999);                               // setiny: 3,25
+        $b = mathTenths() * 10;                          // desetiny: 1,5 — obojí najednou už není z hlavy
+        if (rand(0, 1)) {
+            return ['q' => mathFmt($a / 100) . ' + ' . mathFmt($b / 100) . ' =', 'a' => mathFmt(($a + $b) / 100)];
+        }
+        if ($b > $a) [$a, $b] = [$b, $a];
+        return ['q' => mathFmt($a / 100) . ' − ' . mathFmt($b / 100) . ' =', 'a' => mathFmt(($a - $b) / 100)];
+    }
     if ($variant === 'nasobeni') {
         $num  = rand(1, 999) / 10;                       // jedno desetinné místo
         $mult = [10, 100][rand(0, 1)];
@@ -161,6 +217,12 @@ function mathExDesetinna(string $variant): array {
     return ['q' => mathFmt($a) . ' − ' . mathFmt($b) . ' =', 'a' => mathFmt($a - $b)];
 }
 
+/** Desetiny 0,1–9,9 bez celých čísel — „4 ÷ 4" by nic neprocvičilo */
+function mathTenths(): int {
+    do { $t = rand(1, 99); } while ($t % 10 === 0);
+    return $t;
+}
+
 /** Desetinné číslo česky (s čárkou) a bez zbytečných nul */
 function mathFmt(float $n): string {
     $s = rtrim(rtrim(number_format($n, 2, ',', ''), '0'), ',');
@@ -168,6 +230,24 @@ function mathFmt(float $n): string {
 }
 
 function mathExZlomky(string $variant): array {
+    if ($variant === 'scitani') {
+        $den = [3, 4, 5, 6, 8, 10, 12][rand(0, 6)];
+        if (rand(0, 1)) {
+            $n1  = rand(1, $den - 1);
+            $n2  = rand(1, $den - $n1);                  // součet nejvýš celek
+            $sum = $n1 + $n2;
+            return ['q' => "$n1/$den + $n2/$den =", 'a' => mathFrac($sum, $den)];
+        }
+        $n1 = rand(2, $den - 1);
+        $n2 = rand(1, $n1 - 1);
+        return ['q' => "$n1/$den − $n2/$den =", 'a' => mathFrac($n1 - $n2, $den)];
+    }
+    if ($variant === 'prevod') {
+        // Jen jmenovatele, které dělí 100 — výsledek má nejvýš dvě desetinná místa
+        $den = [2, 4, 5, 10, 20, 25, 50, 100][rand(0, 7)];
+        $num = rand(1, $den - 1);
+        return ['q' => "$num/$den = ? (des. číslo)", 'a' => mathFmt($num / $den)];
+    }
     if ($variant === 'kraceni') {
         $base = rand(2, 9);
         $num  = rand(1, 8);
@@ -184,6 +264,22 @@ function mathExZlomky(string $variant): array {
     return ['q' => "$num/$den z $whole =", 'a' => (string)($whole / $den * $num)];
 }
 
+/** Zlomek v základním tvaru; celek jako „1", nula jako „0" */
+function mathFrac(int $num, int $den): string {
+    if ($num === 0) return '0';
+    $g = mathGcd($num, $den);
+    $num = intdiv($num, $g); $den = intdiv($den, $g);
+    return $den === 1 ? (string)$num : "$num/$den";
+}
+
+function mathExMocniny(string $variant): array {
+    $n = rand(2, 20);
+    if ($variant === 'odmocnina') {
+        return ['q' => '√' . ($n * $n) . ' =', 'a' => (string)$n];
+    }
+    return ['q' => $n . '² =', 'a' => (string)($n * $n)];
+}
+
 function mathExDelitelnost(string $variant): array {
     if ($variant === 'nsd') {
         $g = rand(2, 12);
@@ -196,6 +292,24 @@ function mathExDelitelnost(string $variant): array {
     $divisors = 0;
     for ($i = 1; $i <= $n; $i++) if ($n % $i === 0) $divisors++;
     return ['q' => "$n → kolik dělitelů?", 'a' => (string)$divisors];
+}
+
+/**
+ * Jak má dítě napsat odpověď — tam, kde to z příkladu není vidět.
+ * Hra ji ukazuje pod políčkem, maraton u každého příkladu zvlášť, protože
+ * se v něm témata střídají.
+ */
+function mathAnswerHint(string $topic, string $variant): string {
+    return match (true) {
+        $topic === 'deleni'      && $variant === 'se'        => 'piš ve tvaru „3 zb 2"',
+        $topic === 'zlomky'      && $variant === 'prevod'    => 'desetinné číslo s čárkou, např. 0,25',
+        $topic === 'zlomky'      && $variant === 'cast'      => '',
+        $topic === 'zlomky'                                  => 'zlomek piš ve tvaru 3/4, celek jako 1',
+        $topic === 'desetinna'                               => 'desetinné číslo piš s čárkou, např. 4,5',
+        $topic === 'delitelnost' && $variant === 'nsd'       => 'největší společný dělitel',
+        $topic === 'delitelnost'                             => 'kolik má číslo dělitelů (včetně 1 a sebe sama)',
+        default => '',
+    };
 }
 
 /**
@@ -338,4 +452,72 @@ function mathVariantFromKey(string $key, string $topic, array $allowed): ?string
     if ($pos === false) return null;
     $variant = substr($rest, 0, $pos);
     return in_array($variant, array_map('strval', $allowed), true) ? $variant : null;
+}
+
+/**
+ * Z klíče příkladu zpátky téma a variantu. Otázka v klíči dvojtečku
+ * neobsahuje, tak stačí rozdělit podle prvních dvou.
+ *
+ * @return ?array{topic:string, variant:string}
+ */
+function mathSplitKey(string $key): ?array {
+    $parts = explode(':', $key, 3);
+    if (count($parts) < 3) return null;
+    [$topic, $variant] = $parts;
+    if (!isset(mathTopics()[$topic]['variants'][$variant])) return null;
+    return ['topic' => $topic, 'variant' => $variant];
+}
+
+/**
+ * Z čeho se skládá maraton pro daný ročník: každé téma, které ročník má,
+ * a z něj varianty, které se nepřekrývají. Řady násobilky zastupuje
+ * „celá násobilka", jinak by jich bylo deset a zbytek témat by zanikl.
+ * Sčítání do 20 od čtvrté třídy vynecháváme — v maratonu má být co počítat.
+ *
+ * @return array<array{string,string}> dvojice [téma, varianta]
+ */
+function mathMarathonPairs(int $grade): array {
+    $pairs = [];
+    foreach (mathTopicsForGrade($grade) as $tKey => $t) {
+        $variants = isset($t['variants']['mix']) ? ['mix'] : array_keys($t['variants']);
+        foreach ($variants as $v) {
+            if ($tKey === 'plus_minus' && (string)$v === '20' && $grade >= 4) continue;
+            $pairs[] = [$tKey, (string)$v];
+        }
+    }
+    return $pairs;
+}
+
+/**
+ * Sto příkladů napříč všemi tématy ročníku, rovným dílem a zamíchaných.
+ * Každý příklad nese téma, variantu a klíč jako v běžné hře, takže chyby
+ * padají do chybovníku ke správné sadě a objeví se při jejím tréninku.
+ *
+ * @return array<array{q:string, a:string, topic:string, variant:string, key:string, hint:string}>
+ */
+function generateMathMarathon(int $grade, int $count = 100): array {
+    $pairs = mathMarathonPairs($grade);
+    if (!$pairs) return [];
+
+    // Díl se počítá na téma, ne na variantu — jinak by desetinná čísla se
+    // čtyřmi variantami zabrala čtyřikrát víc místa než násobilka s jednou
+    $byTopic = [];
+    foreach ($pairs as [$topic, $variant]) $byTopic[$topic][] = $variant;
+    $perTopic = (int)ceil($count / count($byTopic));
+
+    $all = [];
+    foreach ($byTopic as $topic => $variants) {
+        $per = (int)ceil($perTopic / count($variants));
+        foreach ($variants as $variant) {
+            foreach (generateMathExamples($topic, $variant, $per) as $ex) {
+                $ex['topic']   = $topic;
+                $ex['variant'] = $variant;
+                $ex['key']     = mathItemKey($topic, $variant, $ex['q']);
+                $ex['hint']    = mathAnswerHint($topic, $variant);
+                $all[] = $ex;
+            }
+        }
+    }
+    shuffle($all);
+    return array_slice($all, 0, $count);
 }

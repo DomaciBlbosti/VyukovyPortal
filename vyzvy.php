@@ -7,6 +7,7 @@
 require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 require_once __DIR__ . '/includes/challenges.php';
+require_once __DIR__ . '/includes/marathon.php';
 
 $user  = getCurrentUser();
 $items = userChallenges((int)$user['id']);
@@ -38,6 +39,9 @@ function renderChallengeCard(array $c): void { ?>
                 <?= $s['done'] ? '✔' : '▢' ?> <?= htmlspecialchars($s['label']) ?>
             </span>
             <span class="challenge-step-state">
+                <?php if ($s['game_type'] === 'math_marathon' && ($rec = marathonRecord((int)$GLOBALS['user']['id']))['best']): ?>
+                🏅 <?= htmlspecialchars(marathonLabel($rec['best'])) ?> ·
+                <?php endif; ?>
                 <?= $s['done_rounds'] ?>/<?= $s['rounds'] ?>× · min <?= (int)$s['min_accuracy'] ?> %
                 <?php if (!$s['done']): ?>
                 <a class="challenge-step-play" href="<?= htmlspecialchars($s['url']) ?>">hrát →</a>

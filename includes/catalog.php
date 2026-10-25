@@ -66,6 +66,12 @@ function catalogTasks(): array {
     }
     $c['math'] = ['label' => 'Matematika', 'icon' => '🔢', 'items' => $items];
 
+    // ── Maraton: sto příkladů ze všech témat ročníku, na čas. Nemá varianty —
+    //    co se v něm počítá, určuje ročník dítěte, ne rodič.
+    $c['math_marathon'] = ['label' => 'Matematický maraton', 'icon' => '🏃',
+                           'items' => ['' => ['label' => '100 příkladů ze všech témat, na čas',
+                                              'url'   => $base . '/games/maraton.php']]];
+
     // ── Čeština: pravopisné sady ──
     $items = [];
     foreach (czechCategories() as $key => $cat) {

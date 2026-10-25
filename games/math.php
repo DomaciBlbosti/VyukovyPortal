@@ -118,7 +118,7 @@ function mathUrl(array $override): string {
 
 <div class="filters" style="margin-bottom:1.25rem">
     <div class="filter-group">
-        <span class="filter-label"><?= $topic === 'nasobilka' ? 'Řady:' : 'Obtížnost:' ?></span>
+        <span class="filter-label"><?= in_array($topic, ['nasobilka', 'velka_nasobilka'], true) ? 'Řady:' : 'Obtížnost:' ?></span>
         <?php foreach ($variants as $key => $label):
             $on = in_array((string)$key, $picked, true); ?>
         <a href="<?= mathUrl(['topic' => $topic, 'v' => toggleSelection($picked, (string)$key, $variants)]) ?>"
@@ -137,7 +137,11 @@ function mathUrl(array $override): string {
 // říká tahle věta nad hrou.
 $taskNote = match (true) {
     $topic === 'zlomky'    && $variant === 'kraceni' => 'Zkrať zlomek na základní tvar.',
+    $topic === 'zlomky'    && $variant === 'scitani' => 'Sečti nebo odečti zlomky; výsledek zapiš v základním tvaru.',
+    $topic === 'zlomky'    && $variant === 'prevod'  => 'Převeď zlomek na desetinné číslo.',
     $topic === 'zlomky'                              => 'Vypočítej část z celku.',
+    $topic === 'mocniny'   && $variant === 'odmocnina' => 'Najdi číslo, které umocněné na druhou dá zadané.',
+    $topic === 'mocniny'                             => 'Vypočítej druhou mocninu.',
     $topic === 'deleni'    && $variant === 'se'      => 'Vyděl se zbytkem.',
     $topic === 'delitelnost' && $variant === 'nsd'   => 'Najdi největší společný dělitel obou čísel.',
     $topic === 'delitelnost'                         => 'Spočítej, kolik má číslo dělitelů (včetně 1 a sebe sama).',
@@ -186,12 +190,8 @@ $taskNote = match (true) {
         <button id="startBtn" class="btn-primary">Začít ▶</button>
         <button id="submitBtn" class="btn-primary" style="display:none">✓ OK</button>
     </div>
-    <?php if ($topic === 'zlomky' && $variant === 'kraceni'): ?>
-    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">Zlomek piš ve tvaru 3/4</p>
-    <?php elseif ($topic === 'deleni' && $variant === 'se'): ?>
-    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">Piš ve tvaru „3 zb 2"</p>
-    <?php elseif ($topic === 'desetinna'): ?>
-    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)">Desetinná čísla piš s čárkou, např. 4,5</p>
+    <?php $fmt = in_array($topic, ['zlomky', 'deleni', 'desetinna'], true) ? mathAnswerHint($topic, $variant) : ''; if ($fmt): ?>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);font-family:var(--font-mono)"><?= htmlspecialchars(ucfirst($fmt)) ?></p>
     <?php endif; ?>
     <?php else: ?>
     <div class="math-choice-grid" id="choiceGrid" style="display:none"></div>

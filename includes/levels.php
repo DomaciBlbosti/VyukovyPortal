@@ -16,6 +16,7 @@ const DEFAULT_MULTIPLIERS = [
     'blind'         => ['Slepý režim',     1.50],
     'duel'          => ['Souboj hráčů',    1.20],
     'math'          => ['Matematika',      1.00],
+    'math_marathon' => ['Matematický maraton', 1.20],
     'geography'     => ['Zeměpis — otázky', 1.00],
     'geography_map' => ['Zeměpis — slepé mapy', 1.30],
     'czech'         => ['Čeština — pravopis', 1.20],

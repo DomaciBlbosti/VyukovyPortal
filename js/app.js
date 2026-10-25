@@ -55,8 +55,21 @@ function renderReward(data, statusEl) {
     const badge = panel.querySelector('.points-earned');
     badge ? badge.after(box) : (anchor ? anchor.after(box) : panel.prepend(box));
 
-    // Splněné kroky výzvy a dokončené výzvy
+    // Maraton: čas tohohle kola a rekord
     let anchorEl = box;
+    if (data.marathon) {
+        const m  = data.marathon;
+        const el = document.createElement('div');
+        el.className = m.is_record ? 'challenge-earned' : 'marathon-result';
+        el.innerHTML = m.is_record
+            ? '<strong>🏅 Nový rekord: ' + m.time + '!</strong>' +
+              (m.count > 1 ? '<div class="levelup-sub">nejmíň chyb a nejrychleji ze všech tvých ' + m.count + ' maratonů</div>' : '')
+            : '⏱ Čas ' + m.time + (m.best ? ' · tvůj rekord ' + m.best : '');
+        anchorEl.after(el);
+        anchorEl = el;
+    }
+
+    // Splněné kroky výzvy a dokončené výzvy
     const ch = data.challenge || {};
     (ch.challenges || []).forEach(title => {
         const el = document.createElement('div');

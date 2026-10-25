@@ -80,6 +80,14 @@ function achievementDefs(): array {
             'title' => 'Angličtinář', 'desc' => 'Zahraj 10 kol angličtiny', 'icon' => '🇬🇧',
             'cond' => fn($s, $g) => $s['english_games'] >= 10,
         ],
+        'marathon_runner' => [
+            'title' => 'Maratonec', 'desc' => 'Dokonči matematický maraton — 100 příkladů v kuse', 'icon' => '🏃',
+            'cond' => fn($s, $g) => $s['marathon_games'] >= 1,
+        ],
+        'marathon_sprinter' => [
+            'title' => 'Sprinter', 'desc' => 'Maraton pod 10 minut s nejvýš 5 chybami', 'icon' => '⚡',
+            'cond' => fn($s, $g) => $s['marathon_best'] > 0 && $s['marathon_best'] < 600,
+        ],
     ];
 }
 
@@ -93,11 +101,15 @@ function achievementStats(int $userId): array {
                                  THEN wpm END), 0)                 AS best_typing_wpm,
                SUM(CASE WHEN accuracy >= 100 THEN 1 ELSE 0 END)    AS perfect_games,
                SUM(CASE WHEN game_type = 'czech' THEN 1 ELSE 0 END) AS czech_games,
-               SUM(CASE WHEN game_type = 'math'  THEN 1 ELSE 0 END) AS math_games,
+               SUM(CASE WHEN game_type IN ('math','math_marathon') THEN 1 ELSE 0 END) AS math_games,
                SUM(CASE WHEN game_type = 'english' THEN 1 ELSE 0 END) AS english_games,
+               SUM(CASE WHEN game_type = 'math_marathon' THEN 1 ELSE 0 END) AS marathon_games,
+               COALESCE(MIN(CASE WHEN game_type = 'math_marathon' AND errors <= 5
+                                 THEN duration_seconds END), 0)    AS marathon_best,
                COUNT(DISTINCT CASE
                      WHEN game_type IN ('classic','timed','blind','duel') THEN 'psani'
                      WHEN game_type LIKE 'geography%'                     THEN 'zemepis'
+                     WHEN game_type LIKE 'math%'                          THEN 'math'
                      ELSE game_type END)                           AS subjects
         FROM game_sessions WHERE user_id = ?
     ");
@@ -112,6 +124,8 @@ function achievementStats(int $userId): array {
         'czech_games'     => (int)($s['czech_games'] ?? 0),
         'math_games'      => (int)($s['math_games'] ?? 0),
         'english_games'   => (int)($s['english_games'] ?? 0),
+        'marathon_games'  => (int)($s['marathon_games'] ?? 0),
+        'marathon_best'   => (int)($s['marathon_best'] ?? 0),
         'subjects'        => (int)($s['subjects'] ?? 0),
         'streak'          => currentStreak($userId),
     ];

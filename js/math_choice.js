@@ -6,6 +6,7 @@
     const questionEl = document.getElementById('mathQuestion');
     const feedbackEl = document.getElementById('mathFeedback');
     const dotsEl     = document.getElementById('mathDots');
+    const hintEl     = document.getElementById('mathHint');   // maraton: u každého příkladu jiný tvar odpovědi
     const gridEl     = document.getElementById('choiceGrid');
     const progressBar = document.getElementById('progressBar');
     const gameContainer = document.getElementById('gameContainer');
@@ -35,6 +36,7 @@
         questionEl.textContent = ex.q;
         // dlouhá zadání (NSD, dělitelé) zmenši, ať se vejdou na jeden řádek
         questionEl.classList.toggle('math-question-long', questionEl.textContent.length > 16);
+        if (hintEl) hintEl.textContent = ex.hint || '';
         feedbackEl.textContent = '';
         feedbackEl.className   = 'math-feedback';
         gridEl.innerHTML       = '';
