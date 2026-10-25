@@ -190,5 +190,24 @@ function runMigrations(PDO $db): array {
         $done[] = 'nastavení proxy se nepodařilo přenést: ' . $e->getMessage();
     }
 
+    // 12. Výzva „Matematický maraton" — ať ji rodič najde v adminu rovnou
+    //     k zadání a nemusí ji skládat. Jen jednou: podle kroku, ne názvu,
+    //     ať se po přejmenování nezaloží znovu.
+    try {
+        $has = (int)$db->query("SELECT COUNT(*) FROM challenge_steps WHERE game_type = 'math_marathon'")->fetchColumn();
+        if ($has === 0) {
+            $db->prepare('INSERT INTO challenges (title, description, created_by, created_at) VALUES (?,?,?,?)')
+               ->execute(['Matematický maraton', '100 příkladů ze všech témat tvého ročníku, na čas. Zkus překonat svůj rekord.',
+                          null, date('Y-m-d H:i:s')]);
+            $cid = (int)$db->lastInsertId();
+            $db->prepare('INSERT INTO challenge_steps (challenge_id, position, game_type, topic, rounds, min_accuracy)
+                          VALUES (?,?,?,?,?,?)')
+               ->execute([$cid, 0, 'math_marathon', '', 1, 80]);
+            $done[] = 'výzva Matematický maraton založena';
+        }
+    } catch (Throwable $e) {
+        $done[] = 'výzvu Maraton se nepodařilo založit: ' . $e->getMessage();
+    }
+
     return $done;
 }

@@ -178,7 +178,8 @@ function parseAnswerPayload(?string $json): array {
     if (!is_array($data)) return [];
 
     $out = [];
-    foreach (array_slice($data, 0, 60) as $it) {
+    // Běžné kolo má 15 úloh, maraton 100 — strop je pojistka proti nesmyslu, ne limit
+    foreach (array_slice($data, 0, 120) as $it) {
         if (!is_array($it) || !isset($it['key'])) continue;
         $out[] = [
             'key'    => (string)$it['key'],

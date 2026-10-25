@@ -115,13 +115,17 @@ function saveGameResult(array $data): array {
     // Když se hraje víc sad najednou (řada 6 + 7), přijdou odpovědi rozdělené
     // po sadách v 'answer_groups' — jinak by se chybovník slil do jedné hromady
     // a při pozdějším tréninku samotné sedmičky by se chyby nenabídly.
+    //
+    // Maraton se ukládá jako vlastní hra (kvůli rekordům), ale jeho chyby
+    // patří k matematice — ať se nabídnou při tréninku té které sady.
+    $answersGame = (string)($data['answers_game_type'] ?? $data['game_type'] ?? '');
     if (!empty($data['answers'])) {
-        recordAnswers((int)$user['id'], $data['game_type'] ?? '', $data['answers'],
+        recordAnswers((int)$user['id'], $answersGame, $data['answers'],
                       (string)($data['topic'] ?? ''), (string)($data['topic_label'] ?? ''));
     }
     foreach ($data['answer_groups'] ?? [] as $group) {
         if (empty($group['items'])) continue;
-        recordAnswers((int)$user['id'], $data['game_type'] ?? '', $group['items'],
+        recordAnswers((int)$user['id'], $answersGame, $group['items'],
                       (string)($group['topic'] ?? ''), (string)($group['topic_label'] ?? ''));
     }
 

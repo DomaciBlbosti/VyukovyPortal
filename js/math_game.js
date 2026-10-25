@@ -17,6 +17,7 @@
     const questionEl = document.getElementById('mathQuestion');
     const feedbackEl = document.getElementById('mathFeedback');
     const dotsEl     = document.getElementById('mathDots');
+    const hintEl     = document.getElementById('mathHint');   // maraton: u každého příkladu jiný tvar odpovědi
     const progressBar = document.getElementById('progressBar');
     const gameContainer = document.getElementById('gameContainer');
     const resultsPanel  = document.getElementById('resultsPanel');
@@ -49,6 +50,7 @@
         questionEl.textContent  = examples[current].q;
         // dlouhá zadání (NSD, dělitelé) zmenši, ať se vejdou na jeden řádek
         questionEl.classList.toggle('math-question-long', questionEl.textContent.length > 16);
+        if (hintEl) hintEl.textContent = examples[current].hint || '';
         feedbackEl.textContent  = '';
         feedbackEl.className    = 'math-feedback';
         input.value             = '';

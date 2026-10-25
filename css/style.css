@@ -844,6 +844,12 @@ a:hover { text-decoration: underline; }
 .math-dot.dot-current { background: var(--accent2); border-color: var(--accent2); }
 .math-dot.dot-ok  { background: var(--accent); border-color: var(--accent); }
 .math-dot.dot-err { background: var(--danger); border-color: var(--danger); }
+/* Maraton má sto teček — menší a hustší, ať zaberou pár řádků, ne půl obrazovky */
+.math-dots-many { gap: .22rem; }
+.math-dots-many .math-dot { width: 7px; height: 7px; }
+.math-hint { min-height: 1.2em; font-family: var(--font-mono); font-size: .78rem; color: var(--muted); margin-bottom: .4rem; }
+.marathon-record { border-color: var(--accent); }
+.marathon-result { margin: .75rem 0; padding: .6rem .9rem; border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted); font-size: .9rem; }
 
 /* ─── Matematika — výběr ze 6 možností (mřížka 3×2) ─── */
 .math-choice-grid {
