@@ -762,12 +762,12 @@ function pageStatusLabel(array $page): string {
  */
 function ocrCronTick(int $budget = OCR_CRON_BUDGET): array {
     $started = time();
+    setSetting('ocr_cron_last', (string)$started);   // cron žije, i když tik jen přeskočí
     $lock    = (int)getSetting('ocr_cron_lock', '0');
     if ($lock > 0 && $started - $lock < OCR_CRON_LOCK_STALE) {
         return ['processed' => 0, 'remaining' => ocrOpenRunCount(), 'seconds' => 0, 'skipped' => true];
     }
     setSetting('ocr_cron_lock', (string)$started);
-    setSetting('ocr_cron_last', (string)$started);
 
     $processed = 0;
     $remaining = ocrOpenRunCount();

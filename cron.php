@@ -41,4 +41,4 @@ echo $body;
 while (ob_get_level() > 0) ob_end_flush();
 flush();
 
-if (!$busy) ocrCronTick();
+ocrCronTick();   // při drženém zámku jen zapíše, že cron žije
