@@ -75,6 +75,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                           : 'Ve frontě nic nečekalo.';
             break;
 
+        case 'retarget_queue':
+            $r = retargetQueuedRuns((int)($_POST['album_id'] ?? 0));
+            $message = $r['model'] === '' ? 'V Admin → Modely není vybraný model na čtení obrázků.'
+                     : ($r['count'] ? 'Čekající běhy přepnuty na ' . $r['model'] . ': ' . $r['count'] . '. Co se už počítá, dojede starým modelem.'
+                                    : 'Ve frontě nic nečekalo.');
+            break;
+
         case 'delete_run':
             $message = deleteOcrRun((int)($_POST['run_id'] ?? 0))
                 ? 'Běh smazán.' : 'Vybraný běh smazat nejde — nejdřív vyber jiný.';
@@ -268,11 +275,12 @@ include __DIR__ . '/../includes/header.php';
 
     <?php $ceka = count(array_filter($pages, fn($p) => $p['status'] === 'ceka')); if ($ceka): ?>
     <form method="post" style="margin-top:1rem">
-        <input type="hidden" name="action" value="cancel_queue">
         <input type="hidden" name="album_id" value="<?= $albumId ?>">
         <div class="alert alert-error" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-            <?php $cron = ocrCronStatus(); ?>
-            <span>Ve frontě čeká stránek: <strong><?= $ceka ?></strong>.
+            <?php $cron = ocrCronStatus(); $qm = queuedRunModels($albumId); $current = llmModel('vision');
+                  $other = array_filter($qm, fn($n, $m) => $m !== $current, ARRAY_FILTER_USE_BOTH); ?>
+            <span>Ve frontě čeká stránek: <strong><?= $ceka ?></strong>
+                (model <?= implode(', ', array_map(fn($m, $n) => '<strong>' . htmlspecialchars($m) . '</strong> ' . $n . '×', array_keys($qm), $qm)) ?>).
                 <?php if ($cron['alive']): ?>
                 Zpracovává je cron (naposledy <?= htmlspecialchars($cron['ago']) ?>) — stránku můžeš zavřít.
                 <?php else: ?>
@@ -280,10 +288,14 @@ include __DIR__ . '/../includes/header.php';
                 <?= $cron['last'] ? 'naposledy běžel ' . htmlspecialchars($cron['ago']) : 'ještě neběžel' ?>
                 — <a href="<?= BASE_URL ?>/admin/system.php#cron">nastav ho</a> a fronta pojede i po zavření.
                 <?php endif; ?></span>
-            <button type="submit" class="btn-sm btn-sm-red">Zrušit frontu</button>
+            <?php if ($other && $current !== ''): ?>
+            <button type="submit" name="action" value="retarget_queue" class="btn-sm">Přepnout na <?= htmlspecialchars($current) ?></button>
+            <?php endif; ?>
+            <button type="submit" name="action" value="cancel_queue" class="btn-sm btn-sm-red">Zrušit frontu</button>
         </div>
-        <p class="mistake-hint">Zařadil jsi je omylem s jiným modelem nebo zadáním? Zruš frontu a pusť je znovu.
-            Stránka, kterou model zrovna počítá, dojede — přerušit se nedá.</p>
+        <p class="mistake-hint">Model a zadání se ukládají ke každému běhu při zařazení — změna v Admin → Modely se
+            fronty sama netýká. <?= $other ? 'Fronta čeká na jiném modelu, než je teď nastavený: tlačítkem ji přepneš na aktuální model i zadání. ' : '' ?>Zařadil
+            jsi je omylem? Zruš frontu a pusť je znovu. Stránka, kterou model zrovna počítá, dojede — přerušit se nedá.</p>
     </form>
     <?php endif; ?>
 
