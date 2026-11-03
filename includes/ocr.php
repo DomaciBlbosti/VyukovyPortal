@@ -18,6 +18,15 @@ require_once __DIR__ . '/sets.php';
 /** Stavy, ve kterých se na běhu ještě pracuje */
 const OCR_OPEN = ['ceka', 'bezi'];
 
+/** Po kolika sekundách považujeme „běží" za sirotka a vezmeme ho znovu */
+const OCR_RUN_STALE = 15 * 60;
+
+/** Kolik sekund si jeden tik cronu nejvýš bere; další stránku už nezačne */
+const OCR_CRON_BUDGET = 50;
+
+/** Zámek tiku se po téhle době považuje za opuštěný (tik spadl i s procesem) */
+const OCR_CRON_LOCK_STALE = 20 * 60;
+
 /**
  * Poslední chyba databáze při ukládání.
  *
@@ -378,8 +387,14 @@ function processNextOcrRun(string $batch = ''): array {
 
     $where = $batch !== '' ? 'batch = ? AND ' : '';
     $args  = $batch !== '' ? [$batch] : [];
-    $stmt  = $db->prepare("SELECT * FROM ocr_runs WHERE {$where}status IN (?, ?) ORDER BY id ASC LIMIT 1");
-    $stmt->execute([...$args, 'ceka', 'bezi']);
+    // Bereme, co čeká — a rozpracovaný běh jen tehdy, když visí déle, než
+    // může trvat jedna stránka: to je sirotek po restartu kontejneru nebo
+    // utnutém požadavku, ne něco, co model zrovna počítá. Dřív se bral každý
+    // „běží" a dva pohaněče (prohlížeč + cron) by tutéž stránku počítaly dvakrát.
+    $stale = date('Y-m-d H:i:s', time() - OCR_RUN_STALE);
+    $stmt  = $db->prepare("SELECT * FROM ocr_runs WHERE {$where}(status = ? OR (status = ? AND (started_at IS NULL OR started_at < ?)))
+                           ORDER BY id ASC LIMIT 1");
+    $stmt->execute([...$args, 'ceka', 'bezi', $stale]);
     $run = $stmt->fetch();
 
     $left = $db->prepare("SELECT COUNT(*) FROM ocr_runs WHERE {$where}status IN (?, ?)");
@@ -396,7 +411,7 @@ function processNextOcrRun(string $batch = ''): array {
         return ['done' => false, 'run_id' => (int)$run['id'], 'remaining' => (int)$left->fetchColumn()];
     }
 
-    $db->prepare('UPDATE ocr_runs SET status = ? WHERE id = ?')->execute(['bezi', $run['id']]);
+    $db->prepare('UPDATE ocr_runs SET status = ?, started_at = ? WHERE id = ?')->execute(['bezi', date('Y-m-d H:i:s'), $run['id']]);
     $db->prepare('UPDATE ocr_pages SET status = ? WHERE id = ?')->execute(['bezi', $page['id']]);
 
     $started = microtime(true);
@@ -708,4 +723,88 @@ function pageStatusLabel(array $page): string {
         'ceka'   => '· ve frontě',
         default  => '– bez přepisu',
     };
+}
+
+/* ── Cron ─────────────────────────────────────────────────────────────
+ * Frontu dopředu tlačí prohlížeč: každé „process" zpracuje jednu stránku.
+ * Zavřít záložku znamená zastavit frontu. Cron na serveru volá cron.php
+ * každou minutu a ten frontu posune sám — kolik stránek stihne v rozpočtu.
+ */
+
+/**
+ * Jeden tik cronu: zpracuje stránky z fronty, dokud nějaké jsou a dokud
+ * stačí čas. Dva tiky naráz nesmí běžet (stránka by se počítala dvakrát),
+ * tak se drží zámek v nastavení; zámek po spadlém tiku se po čase ignoruje.
+ *
+ * @return array{processed:int, remaining:int, seconds:int, skipped:bool}
+ */
+function ocrCronTick(int $budget = OCR_CRON_BUDGET): array {
+    $started = time();
+    $lock    = (int)getSetting('ocr_cron_lock', '0');
+    if ($lock > 0 && $started - $lock < OCR_CRON_LOCK_STALE) {
+        return ['processed' => 0, 'remaining' => ocrOpenRunCount(), 'seconds' => 0, 'skipped' => true];
+    }
+    setSetting('ocr_cron_lock', (string)$started);
+    setSetting('ocr_cron_last', (string)$started);
+
+    $processed = 0;
+    $remaining = ocrOpenRunCount();
+    try {
+        while ($remaining > 0 && time() - $started < $budget) {
+            $r = processNextOcrRun('');
+            if ($r['done']) break;
+            $processed++;
+            $remaining = (int)$r['remaining'];
+            setSetting('ocr_cron_lock', (string)time());   // zámek žije, dokud tik pracuje
+        }
+    } finally {
+        setSetting('ocr_cron_lock', '0');
+        setSetting('ocr_cron_last_info', $processed . '|' . $remaining . '|' . (time() - $started));
+    }
+    return ['processed' => $processed, 'remaining' => $remaining, 'seconds' => time() - $started, 'skipped' => false];
+}
+
+/** Kolik běhů čeká nebo běží, napříč alby */
+function ocrOpenRunCount(): int {
+    try {
+        $stmt = getDB()->prepare('SELECT COUNT(*) FROM ocr_runs WHERE status IN (?, ?)');
+        $stmt->execute(['ceka', 'bezi']);
+        return (int)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
+/**
+ * Jak je na tom cron: kdy naposledy tikl a co udělal. „alive" znamená, že
+ * tikl v posledních třech minutách — pak fronta jede i bez otevřené stránky.
+ *
+ * @return array{alive:bool, last:int, ago:string, info:string}
+ */
+function ocrCronStatus(): array {
+    $last = (int)getSetting('ocr_cron_last', '0');
+    $ago  = $last ? time() - $last : -1;
+    $info = '';
+    if (getSetting('ocr_cron_last_info') !== '') {
+        [$p, $r, $s] = array_pad(explode('|', getSetting('ocr_cron_last_info')), 3, '0');
+        $info = "zpracováno $p, zbývá $r, trvalo $s s";
+    }
+    $agoText = match (true) {
+        $ago < 0     => 'ještě neběžel',
+        $ago < 90    => 'před ' . $ago . ' s',
+        $ago < 5400  => 'před ' . intdiv($ago, 60) . ' min',
+        $ago < 172800 => 'před ' . intdiv($ago, 3600) . ' h',
+        default      => 'před ' . intdiv($ago, 86400) . ' dny',
+    };
+    return ['alive' => $ago >= 0 && $ago < 180, 'last' => $last, 'ago' => $agoText, 'info' => $info];
+}
+
+/** Token pro cron.php — vzniká při migraci, tady jen pro jistotu */
+function ocrCronToken(bool $regenerate = false): string {
+    $t = getSetting('cron_token');
+    if ($t === '' || $regenerate) {
+        $t = bin2hex(random_bytes(16));
+        setSetting('cron_token', $t);
+    }
+    return $t;
 }

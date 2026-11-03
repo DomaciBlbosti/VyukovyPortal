@@ -271,8 +271,15 @@ include __DIR__ . '/../includes/header.php';
         <input type="hidden" name="action" value="cancel_queue">
         <input type="hidden" name="album_id" value="<?= $albumId ?>">
         <div class="alert alert-error" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+            <?php $cron = ocrCronStatus(); ?>
             <span>Ve frontě čeká stránek: <strong><?= $ceka ?></strong>.
-                Zpracovávají se postupně, dokud je tahle stránka otevřená.</span>
+                <?php if ($cron['alive']): ?>
+                Zpracovává je cron (naposledy <?= htmlspecialchars($cron['ago']) ?>) — stránku můžeš zavřít.
+                <?php else: ?>
+                Zpracovávají se, dokud je tahle stránka otevřená; cron na serveru
+                <?= $cron['last'] ? 'naposledy běžel ' . htmlspecialchars($cron['ago']) : 'ještě neběžel' ?>
+                — <a href="<?= BASE_URL ?>/admin/system.php#cron">nastav ho</a> a fronta pojede i po zavření.
+                <?php endif; ?></span>
             <button type="submit" class="btn-sm btn-sm-red">Zrušit frontu</button>
         </div>
         <p class="mistake-hint">Zařadil jsi je omylem s jiným modelem nebo zadáním? Zruš frontu a pusť je znovu.

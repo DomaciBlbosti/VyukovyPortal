@@ -212,6 +212,7 @@ CREATE TABLE IF NOT EXISTS ocr_runs (
     tokens     INT          NOT NULL DEFAULT 0,
     chosen     TINYINT(1)   NOT NULL DEFAULT 0,
     created_at DATETIME     NULL,
+    started_at DATETIME     NULL,
     INDEX idx_page (page_id, id),
     INDEX idx_batch (batch),
     FOREIGN KEY (page_id) REFERENCES ocr_pages(id) ON DELETE CASCADE
