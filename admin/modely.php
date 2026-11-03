@@ -16,6 +16,7 @@ $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'settings') {
     setSetting('proxy_url',    trim((string)($_POST['proxy_url'] ?? '')));
     setSetting('vision_model', trim((string)($_POST['vision_model'] ?? '')));
+    setSetting('vision_fallback_model', trim((string)($_POST['vision_fallback_model'] ?? '')));
     setSetting('text_model',   trim((string)($_POST['text_model'] ?? '')));
     setSetting('num_ctx',      (string)max(2048, (int)($_POST['num_ctx'] ?? 8192)));
 
@@ -143,6 +144,15 @@ include __DIR__ . '/../includes/header.php';
                 <label for="vision_model">Model na čtení obrázků</label>
                 <?php proxyModelPicker('vision_model', getSetting('vision_model')); ?>
                 <p class="mistake-hint">Musí umět obrázky. Aplikace to u lokálních modelů ověří dřív, než pošle fotku.</p>
+            </div>
+            <div class="form-group">
+                <label for="vision_fallback_model">Záložní model (když první stránku nepřečte)</label>
+                <?php proxyModelPicker('vision_fallback_model', getSetting('vision_fallback_model'), true); ?>
+                <p class="mistake-hint">
+                    Druhý pokus, když první model stránku odmítne (filtr obsahu u fotek dětí), proxy vrátí chybu
+                    nebo přijde prázdná odpověď. Zadání si vybere podle sebe: OCR model dostane „OCR this image",
+                    obecný to, co měl první. V historii běhů je pak vidět, že se model měnil.
+                </p>
             </div>
             <div class="form-group">
                 <label for="text_model">Model na sestavení sady</label>

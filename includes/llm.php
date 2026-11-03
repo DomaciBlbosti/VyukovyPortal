@@ -118,6 +118,27 @@ function llmModel(string $step): string {
     return getSetting($step === 'vision' ? 'vision_model' : 'text_model');
 }
 
+/** Záložní model na čtení obrázků — zkusí se, když první stránku nepřečte */
+function llmFallbackModel(): string {
+    return trim(getSetting('vision_fallback_model'));
+}
+
+/**
+ * Zadání pro záložní model. Specializovaný OCR model (deepseek, strike)
+ * nesnese dlouhé české zadání, obecnému zase nestačí krátké anglické —
+ * zadání se proto řídí modelem, ne tím, co dostal ten první.
+ */
+function llmFallbackPrompt(string $fallbackModel, string $primaryKey, string $primaryPrompt): array {
+    $ocr = (bool)preg_match('/ocr|deepseek/i', $fallbackModel);
+    if ($ocr) {
+        // „OCR this image" se v testech nezacyklilo ani na hustých stránkách
+        return ['key' => 'deepseek_layout', 'prompt' => OCR_PROMPTS['deepseek_layout']['prompt']];
+    }
+    $primaryIsOcr = str_starts_with($primaryKey, 'deepseek') || $primaryKey === 'strike' || str_contains($primaryPrompt, '<|grounding|>');
+    if ($primaryIsOcr) return ['key' => 'vlm_cs', 'prompt' => OCR_PROMPTS['vlm_cs']['prompt']];
+    return ['key' => $primaryKey, 'prompt' => $primaryPrompt];
+}
+
 /**
  * Hrubý odhad počtu tokenů. Čeština má kolem tří znaků na token, což na
  * varování „tohle se nevejde" bohatě stačí — přesnost tady nepotřebujeme.

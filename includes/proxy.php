@@ -421,6 +421,12 @@ function proxyGenerateProvider(string $model, array $prov, string $prompt, ?stri
     $max  = PROXY_CLOUD_MAX_TOKENS;
     $type = $imageB64 !== null ? imageMediaType($imageB64) : '';
 
+    // Anthropic odmítá i stránky učebnic s fotkami dětí — jejich filtr je
+    // u nezletilých na fotce opatrný. Není to chyba zadání a opakování nepomůže.
+    $explain = fn(string $e) => str_contains($e, 'content filtering')
+        ? 'Model ' . $model . ' stránku odmítl: filtr obsahu poskytovatele (nejspíš kvůli fotkám dětí). Opakování nepomůže, zkus jiný model.'
+        : $e;
+
     if ($prov['kind'] === 'anthropic') {
         $content = [['type' => 'text', 'text' => $prompt]];
         if ($imageB64 !== null) {
@@ -434,7 +440,7 @@ function proxyGenerateProvider(string $model, array $prov, string $prompt, ?stri
             'max_tokens' => $max,
             'messages'   => [['role' => 'user', 'content' => $content]],
         ], 600, ['anthropic-version: 2023-06-01']);
-        if (!$r['ok']) return $fail($r['error']);
+        if (!$r['ok']) return $fail($explain($r['error']));
 
         $text = '';
         foreach ((array)($r['body']['content'] ?? []) as $part) {
@@ -466,7 +472,7 @@ function proxyGenerateProvider(string $model, array $prov, string $prompt, ?stri
         $payload['max_completion_tokens'] = $max;
         $r = proxyCall($prov['path'] . '/chat/completions', $payload);
     }
-    if (!$r['ok']) return $fail($r['error']);
+    if (!$r['ok']) return $fail($explain($r['error']));
 
     $choice = $r['body']['choices'][0] ?? [];
     $text   = trim((string)($choice['message']['content'] ?? ''));
