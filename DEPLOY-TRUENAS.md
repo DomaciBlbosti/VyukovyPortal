@@ -54,6 +54,23 @@ docker compose up -d
 > `UPDATE_ON_START=false` self-update vypne (kontejner pak jede pořád stejný
 > commit). Jinou větev než `main` vybereš přes `REPO_BRANCH`.
 
+## 4. Cron pro frontu přepisů (OCR)
+
+Frontu přepisů ve *Skenování učebnic* tlačí dopředu prohlížeč — zavřením
+stránky se zastaví. Když ji má server dojíždět sám (třeba přes noc),
+nastav na TrueNAS cron, který každou minutu zavolá `cron.php`:
+
+1. V aplikaci **Admin → Systém → Cron** si zkopíruj příkaz (má v sobě token).
+2. TrueNAS: **System Settings → Advanced → Cron Jobs → Add**
+   - *Command*: `curl -fsS -m 110 "http://IP-TrueNAS:8090/cron.php?token=…" >/dev/null`
+   - *Run As User*: `root` · *Schedule*: Custom `* * * * *`
+   - zaškrtni *Hide Standard Output* i *Hide Standard Error*
+3. Do dvou minut ukáže Admin → Systém **✔ cron běží**.
+
+Volej vnitřní adresu, ne doménu přes Cloudflare — ten utne požadavek po
+100 s a jeden tik umí trvat déle. Jeden tik zpracuje, co stihne za ~50 s,
+zbytek vezme další minuta; dva tiky naráz se nepotkají (zámek v databázi).
+
 ## Env proměnné
 
 | Proměnná | Výchozí | Význam |

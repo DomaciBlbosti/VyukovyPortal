@@ -68,6 +68,21 @@ vidíš stav i čas. **Práce běží na serveru nezávisle na prohlížeči** �
 stránku zavřeš nebo spojení utne reverzní proxy, přepis doběhne a po návratu ho
 tam najdeš hotový.
 
+### Fronta a cron
+
+Zařazené stránky zpracovává **prohlížeč**: dokud je stránka alba otevřená,
+posílá serveru „další" a ten přepíše jednu stránku. Zavřít záložku znamená
+frontu zastavit — zůstane viset ve stavu *ve frontě*.
+
+Aby fronta jela i bez tebe, zavolá server sám sebe z **cronu**: adresa
+a hotový příkaz jsou v *Admin → Systém → Cron*, nastavení na TrueNAS popisuje
+`DEPLOY-TRUENAS.md`. Jak cron běží, u fronty v albu to stojí (*zpracovává je
+cron — stránku můžeš zavřít*); když se odmlčí, hláška řekne i to.
+
+Stránka, u které „běží" visí přes čtvrt hodiny, je sirotek (restart
+kontejneru, utnutý požadavek) a fronta ji vezme znovu. Dřív se brala každá
+rozpracovaná — a prohlížeč s cronem by tutéž stránku počítaly dvakrát.
+
 ### Detail stránky a historie běhů
 
 *Detail* u stránky otevře originál vedle přepisu v editovatelném poli — dá se

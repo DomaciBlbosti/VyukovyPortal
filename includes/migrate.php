@@ -80,6 +80,7 @@ function runMigrations(PDO $db): array {
         ['ocr_jobs',  'grade',       'ALTER TABLE ocr_jobs ADD COLUMN grade TINYINT NOT NULL DEFAULT 0'],
         ['custom_sets', 'job_id',    'ALTER TABLE custom_sets ADD COLUMN job_id INT NULL'],
         ['game_sessions', 'variant', "ALTER TABLE game_sessions ADD COLUMN variant VARCHAR(120) NOT NULL DEFAULT ''"],
+        ['ocr_runs',  'started_at',  'ALTER TABLE ocr_runs ADD COLUMN started_at DATETIME NULL'],
     ] as [$table, $column, $sql]) {
         try {
             $db->query("SELECT $column FROM $table LIMIT 1");
@@ -208,6 +209,16 @@ function runMigrations(PDO $db): array {
         }
     } catch (Throwable $e) {
         $done[] = 'výzvu Maraton se nepodařilo založit: ' . $e->getMessage();
+    }
+
+    // 13. Token pro cron.php, ať má admin hned co opsat do cronu na TrueNAS
+    try {
+        if (getSetting('cron_token') === '') {
+            setSetting('cron_token', bin2hex(random_bytes(16)));
+            $done[] = 'token pro cron vygenerován';
+        }
+    } catch (Throwable $e) {
+        $done[] = 'token pro cron se nepodařilo vygenerovat: ' . $e->getMessage();
     }
 
     return $done;

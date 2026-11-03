@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 
+require_once __DIR__ . '/../includes/ocr.php';
+
 $root   = dirname(__DIR__);
 $hasGit = is_dir($root . '/.git') && trim((string)shell_exec('command -v git')) !== '';
 
@@ -21,6 +23,11 @@ function runGit(string $args): array {
 
 $branch = $hasGit ? runGit('rev-parse --abbrev-ref HEAD')[1] : '';
 $msg = ''; $msgType = 'ok'; $updateLog = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'cron_token') {
+    ocrCronToken(true);
+    $msg = 'Token vygenerován znovu — starý přestal platit, přepiš ho v cronu.';
+}
 
 if ($hasGit && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -70,6 +77,13 @@ $local = $hasGit ? runGit("log -1 $fmt")[1] : '';
 $behindNow = $hasGit ? (int)runGit('rev-list --count HEAD..origin/' . escapeshellarg($branch))[1] : 0;
 $remote = $hasGit ? runGit("log -1 $fmt origin/" . escapeshellarg($branch))[1] : '';
 [$remHash, $remDate, $remMsg] = $hasGit && $remote ? array_pad(explode('|', $remote, 3), 3, '') : ['', '', ''];
+
+// Cron: adresa, kterou má TrueNAS volat. Přes vnitřní síť je lepší než přes
+// Cloudflare — ten utne požadavek po 100 s a tik umí trvat déle.
+$cronToken = ocrCronToken();
+$cronHost  = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+$cronUrl   = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . $cronHost . BASE_URL . '/cron.php?token=' . $cronToken;
+$cron      = ocrCronStatus();
 
 $pageTitle = 'Systém';
 include __DIR__ . '/../includes/header.php';
@@ -132,5 +146,42 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <?php endif; ?>
+
+<div class="admin-card" id="cron" style="margin-bottom:1.5rem">
+    <h2 class="section-title">⏱ Cron — fronta přepisů běží i bez otevřené stránky</h2>
+    <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">
+        Frontu přepisů (OCR) normálně tlačí dopředu prohlížeč, takže zavřením stránky se zastaví.
+        Když bude server každou minutu volat adresu níž, zpracuje fronta sama tolik stránek,
+        kolik za minutu stihne — a může se nechat jet přes noc.
+    </p>
+    <table class="data-table" style="margin-bottom:1rem">
+        <tr><td style="color:var(--muted)">Stav</td><td>
+            <?php if ($cron['alive']): ?>
+                <span class="badge-status active">✔ cron běží</span> <span class="mistake-hint">naposledy <?= htmlspecialchars($cron['ago']) ?><?= $cron['info'] ? ' · ' . htmlspecialchars($cron['info']) : '' ?></span>
+            <?php elseif ($cron['last']): ?>
+                <span class="badge-status disabled">⚠ cron se odmlčel</span> <span class="mistake-hint">naposledy <?= htmlspecialchars($cron['ago']) ?></span>
+            <?php else: ?>
+                <span class="badge-status disabled">cron ještě neběžel</span>
+            <?php endif; ?>
+        </td></tr>
+        <tr><td style="color:var(--muted)">Adresa</td><td><code style="word-break:break-all"><?= htmlspecialchars($cronUrl) ?></code></td></tr>
+        <tr><td style="color:var(--muted)">Příkaz</td><td><code style="word-break:break-all">curl -fsS -m 110 "<?= htmlspecialchars($cronUrl) ?>" &gt;/dev/null</code></td></tr>
+    </table>
+    <details style="margin-bottom:1rem">
+        <summary style="cursor:pointer;color:var(--accent)">Jak to nastavit na TrueNAS</summary>
+        <ol style="font-size:.9rem;color:var(--muted);margin:.75rem 0 0 1.2rem;line-height:1.7">
+            <li><strong>System Settings → Advanced → Cron Jobs → Add</strong></li>
+            <li><em>Command</em>: příkaz výše. Přes vnitřní adresu (<code>http://IP-TrueNAS:PORT/cron.php?token=…</code>)
+                je to lepší než přes doménu — Cloudflare utne požadavek po 100 s a jeden tik umí trvat déle.</li>
+            <li><em>Run As User</em>: <code>root</code> · <em>Schedule</em>: Custom, <code>* * * * *</code> (každou minutu)</li>
+            <li>Zaškrtni <em>Hide Standard Output</em> i <em>Hide Standard Error</em>, jinak ti TrueNAS bude posílat mail po každé minutě.</li>
+            <li>Ulož. Do dvou minut tu nahoře uvidíš <strong>✔ cron běží</strong>.</li>
+        </ol>
+    </details>
+    <form method="post" onsubmit="return confirm('Starý token přestane platit a cron na TrueNAS bude potřeba přepsat. Pokračovat?')">
+        <input type="hidden" name="action" value="cron_token">
+        <button type="submit" class="btn-secondary">🔑 Vygenerovat nový token</button>
+    </form>
+</div>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
