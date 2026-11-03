@@ -89,6 +89,12 @@ Zařazené stránky zpracovává **prohlížeč**: dokud je stránka alba otevř
 posílá serveru „další" a ten přepíše jednu stránku. Zavřít záložku znamená
 frontu zastavit — zůstane viset ve stavu *ve frontě*.
 
+Model a zadání se ukládají ke každému běhu ve chvíli zařazení — změna v
+Admin → Modely se tedy už čekající fronty sama netýká. Banner u fronty ukazuje,
+na jakém modelu čeká, a když je jiný než ten nastavený, tlačítko *Přepnout na …*
+přepíše čekající běhy na aktuální model i zadání (co se zrovna počítá, dojede
+starým modelem).
+
 Aby fronta jela i bez tebe, zavolá server sám sebe z **cronu**: adresa
 a hotový příkaz jsou v *Admin → Systém → Cron*, nastavení na TrueNAS popisuje
 `DEPLOY-TRUENAS.md`. Jak cron běží, u fronty v albu to stojí (*zpracovává je

@@ -351,6 +351,47 @@ function pageRuns(int $pageId): array {
  *
  * @return int kolik běhů se zrušilo
  */
+/**
+ * Jaké modely mají čekající běhy alba: [model => počet]. Model se ukládá
+ * ke každému běhu při zařazení, takže fronta může jet na něčem jiném, než
+ * co je zrovna v nastavení — a admin by to měl vidět dřív, než se diví.
+ */
+function queuedRunModels(int $jobId): array {
+    try {
+        $ids = array_column(ocrPages($jobId), 'id');
+        if (!$ids) return [];
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $st = getDB()->prepare("SELECT model, COUNT(*) AS n FROM ocr_runs WHERE status = ? AND page_id IN ($in) GROUP BY model ORDER BY n DESC");
+        $st->execute(['ceka', ...$ids]);
+        $out = [];
+        foreach ($st->fetchAll() as $r) $out[(string)$r['model']] = (int)$r['n'];
+        return $out;
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Čekající běhy alba přepne na aktuální model a zadání z Admin → Modely.
+ * Co se zrovna počítá, dojede starým modelem — přerušit se nedá.
+ */
+function retargetQueuedRuns(int $jobId): array {
+    $model = llmModel('vision');
+    if ($model === '') return ['count' => 0, 'model' => ''];
+    $key    = ocrDefaultPromptKey();
+    $prompt = ocrPromptText($key);
+    try {
+        $ids = array_column(ocrPages($jobId), 'id');
+        if (!$ids) return ['count' => 0, 'model' => $model];
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $st = getDB()->prepare("UPDATE ocr_runs SET model = ?, provider = ?, prompt_key = ?, prompt = ? WHERE status = ? AND page_id IN ($in)");
+        $st->execute([mb_substr($model, 0, 120), modelProvider($model), mb_substr($key, 0, 40), $prompt, 'ceka', ...$ids]);
+        return ['count' => $st->rowCount(), 'model' => $model];
+    } catch (PDOException $e) {
+        return ['count' => 0, 'model' => $model];
+    }
+}
+
 function cancelQueuedRuns(int $jobId): int {
     try {
         $db  = getDB();
