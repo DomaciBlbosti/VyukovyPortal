@@ -165,7 +165,7 @@ include __DIR__ . '/../includes/header.php';
             <?php endif; ?>
         </td></tr>
         <tr><td style="color:var(--muted)">Adresa</td><td><code style="word-break:break-all"><?= htmlspecialchars($cronUrl) ?></code></td></tr>
-        <tr><td style="color:var(--muted)">Příkaz</td><td><code style="word-break:break-all">curl -fsS -m 110 "<?= htmlspecialchars($cronUrl) ?>" &gt;/dev/null</code></td></tr>
+        <tr><td style="color:var(--muted)">Příkaz</td><td><code style="word-break:break-all">curl -fsS -m 20 "<?= htmlspecialchars($cronUrl) ?>" &gt;/dev/null</code></td></tr>
     </table>
     <details style="margin-bottom:1rem">
         <summary style="cursor:pointer;color:var(--accent)">Jak to nastavit na TrueNAS</summary>
