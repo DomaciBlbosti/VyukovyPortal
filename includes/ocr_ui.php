@@ -34,7 +34,7 @@ function ocrProbe(): array {
  * Výběr modelu. Lokální i komerční jsou v jednom seznamu, protože se posílají
  * na stejnou adresu — liší se jen tím, kdo je provozuje.
  */
-function proxyModelPicker(string $name, string $current): void {
+function proxyModelPicker(string $name, string $current, bool $allowNone = false): void {
     $probe  = ocrProbe();
     $groups = ['🏠 U tebe doma' => [], '☁️ Komerční (fotky odejdou ven)' => []];
     foreach ($probe['models'] as $m) {
@@ -47,6 +47,9 @@ function proxyModelPicker(string $name, string $current): void {
     $known = array_column($probe['models'], 'name');
     ?>
     <select id="<?= $name ?>" name="<?= $name ?>" class="form-input">
+        <?php if ($allowNone): ?>
+        <option value="" <?= $current === '' ? 'selected' : '' ?>>— žádný —</option>
+        <?php endif; ?>
         <?php if ($current !== '' && !in_array($current, $known, true)): ?>
         <option value="<?= htmlspecialchars($current) ?>" selected><?= htmlspecialchars($current) ?> (proxy ho teď nenabízí)</option>
         <?php endif; ?>

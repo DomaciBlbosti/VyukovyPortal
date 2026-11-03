@@ -68,6 +68,21 @@ vidíš stav i čas. **Práce běží na serveru nezávisle na prohlížeči** �
 stránku zavřeš nebo spojení utne reverzní proxy, přepis doběhne a po návratu ho
 tam najdeš hotový.
 
+### Záložní model
+
+V *Modely a zadání* jde vedle modelu na čtení obrázků nastavit i **záložní**.
+Když první model stránku nepřečte — odmítne ji filtr obsahu (Anthropic je
+opatrný na fotky dětí a stránky učebnic s portréty někdy odmítne), proxy
+vrátí chybu, nebo přijde prázdná odpověď — zkusí aplikace tutéž stránku
+záložním modelem, než ji nechá jako chybu. V noční frontě přes cron se tak
+nic nezasekne.
+
+Běh pak nese model, který text doopravdy dal, a v poznámce stojí, proč se
+měnil. Zadání si záložní model volí podle sebe: OCR model (deepseek, strike)
+dostane *OCR this image*, obecný model to, co měl první.
+
+Rozumné nastavení: primárně `claude-haiku-5-5`, záložní `strike-ocr`.
+
 ### Fronta a cron
 
 Zařazené stránky zpracovává **prohlížeč**: dokud je stránka alba otevřená,

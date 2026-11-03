@@ -420,11 +420,32 @@ function processNextOcrRun(string $batch = ''): array {
         'prompt'     => (string)$run['prompt'],
         'prompt_key' => (string)$run['prompt_key'],
     ]);
+
+    // Druhý pokus záložním modelem: když první stránku nepřečte (filtr
+    // obsahu, chyba proxy, prázdná odpověď), nemá smysl nechat ji viset
+    // jako chybu v noční frontě. Běh pak nese ten model, který text
+    // doopravdy dal, a v poznámce zůstane, proč se měnil.
+    $fallback = llmFallbackModel();
+    $switched = '';
+    if (!$res['ok'] && $fallback !== '' && $fallback !== (string)$run['model']) {
+        $firstError = $res['error'];
+        $fp  = llmFallbackPrompt($fallback, (string)$run['prompt_key'], (string)$run['prompt']);
+        $res = llmOcrPage((string)$page['image_b64'], ['model' => $fallback, 'prompt' => $fp['prompt'], 'prompt_key' => $fp['key']]);
+        if ($res['ok']) {
+            $switched = 'Model ' . $run['model'] . ' neuspěl (' . mb_substr($firstError, 0, 110) . ') — stránku přepsal záložní ' . $fallback . '.';
+            $db->prepare('UPDATE ocr_runs SET model = ?, provider = ?, prompt_key = ?, prompt = ? WHERE id = ?')
+               ->execute([mb_substr($fallback, 0, 120), modelProvider($fallback), $fp['key'], $fp['prompt'], $run['id']]);
+        } else {
+            $res['error'] = $firstError . ' Záložní ' . $fallback . ': ' . $res['error'];
+        }
+    }
     $secs = (int)round(microtime(true) - $started);
 
     if ($res['ok']) {
+        $warning = $switched !== '' ? mb_substr($switched . ($res['warning'] !== '' ? ' ' . $res['warning'] : ''), 0, 255)
+                                    : mb_substr($res['warning'], 0, 255);
         $db->prepare('UPDATE ocr_runs SET status = ?, text = ?, error = ?, warning = ?, seconds = ?, tokens = ? WHERE id = ?')
-           ->execute(['hotovo', $res['text'], '', mb_substr($res['warning'], 0, 255), $secs, $res['tokens'], $run['id']]);
+           ->execute(['hotovo', $res['text'], '', $warning, $secs, $res['tokens'], $run['id']]);
         if (!empty($res['blocks'])) saveOcrBlocks((int)$run['id'], (int)$page['id'], $res['blocks'], (string)$page['image_b64']);
         // Podezřelý běh (zacyklení, zopakované zadání) nesmí přebít dobrý
         // přepis; platným se stane jen tam, kde zatím žádný pořádný není —
@@ -434,6 +455,7 @@ function processNextOcrRun(string $batch = ''): array {
         $curWarning = $cur->fetch();
         $weakCurrent = trim((string)$page['text']) === '' || mb_strlen(trim((string)$page['text'])) < 50
                     || ($curWarning !== false && (string)$curWarning['warning'] !== '');
+        // Poznámka o přepnutí na záložní model není varování o kvalitě
         if ($res['warning'] === '' || $weakCurrent) {
             chooseOcrRun((int)$run['id'], false);
         } else {
