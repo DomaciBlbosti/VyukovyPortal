@@ -257,6 +257,16 @@ function setPayloadFromItems(array $set, array $items): string {
  * Hlavička sady zůstává; mění se jen to, co je uvnitř. Staré položky mažeme
  * a vkládáme nové, protože se můžou přečíslovat i ubýt.
  */
+/** Přejmenuje sadu (název a zdroj); položky se nemění */
+function renameSet(int $setId, string $title, string $source): bool {
+    try {
+        return getDB()->prepare('UPDATE custom_sets SET title = ?, source = ?, updated_at = ? WHERE id = ?')
+                      ->execute([mb_substr(trim($title), 0, 120), mb_substr(trim($source), 0, 180), date('Y-m-d H:i:s'), $setId]);
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
 function replaceSetItems(int $setId, array $items): bool {
     try {
         $db = getDB();
