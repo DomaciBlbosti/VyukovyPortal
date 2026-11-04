@@ -1450,3 +1450,7 @@ a:hover { text-decoration: underline; }
     white-space: pre-wrap; font-size: .8rem; margin: 0; max-height: 22rem; overflow: auto;
     background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: .75rem;
 }
+
+/* Kapitoly: řádek se zaškrtávátkem (obecné .form-group input by ho roztáhlo na celou šířku) */
+.ocr-pick-line { display:flex; align-items:center; gap:.45rem; font-size:.9rem; padding:.15rem 0; cursor:pointer; }
+.ocr-pick-line input[type=checkbox] { width:auto; margin:0; }

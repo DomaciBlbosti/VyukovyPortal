@@ -7,14 +7,15 @@ Všechno jde přes **Ollama Proxy** — jednu adresu, jeden klíč. Jestli strá
 přečte model na tvé kartě, nebo komerční API, rozhoduje jen jeho **název**;
 klíče k poskytovatelům drží proxy, aplikace je nikdy nevidí.
 
-## Čtyři záložky
+## Pět záložek
 
-Admin → 🔍 Skenování učebnic má čtyři části, každou na vlastní stránce:
+Admin → 🔍 Skenování učebnic má pět částí, každou na vlastní stránce:
 
 | Záložka | Co se tam dělá |
 |---|---|
 | 🖼️ **Galerie** | podklady po předmětech a ročnících: nahrát, přesunout mezi alby, přeřadit, smazat |
 | 🔍 **Přepis (OCR)** | vybrat fotky z alba, model a zadání, pustit; u každé fotky historie běhů |
+| 📖 **Kapitoly** | rozdělit učebnici na kapitoly (navrhne model) a složit z nich sady naráz |
 | 🧩 **Tvorba sad** | z přepsaného textu složit JSON sady a předat ho do importu |
 | ⚙️ **Modely a zadání** | adresa a klíč proxy, modely, velikost kontextu, výchozí zadání a sada zadání k vyzkoušení |
 
@@ -82,6 +83,11 @@ měnil. Zadání si záložní model volí podle sebe: OCR model (deepseek, stri
 dostane *OCR this image*, obecný model to, co měl první.
 
 Rozumné nastavení: primárně `claude-haiku-5-5`, záložní `strike-ocr`.
+
+Za neúspěch se počítá i odpověď, která není přepis, ale omluva („I'm sorry,
+I can't assist with that.“) — komerční model ji občas pošle místo stránky
+se stavem 200. Dřív se uložila jako hotový přepis; teď běh skončí chybou
+a záložní model dostane slovo.
 
 ### Fronta a cron
 
@@ -228,6 +234,42 @@ porovnej přepis s fotkou; kvůli tomu je detail stránky vedle sebe.
 4. Co vyhrálo, nastav jako výchozí v *Modely a zadání*.
 
 Výchozí zadání i model se dají u každého spuštění změnit.
+
+## Kapitoly učebnice
+
+Album s celou učebnicí má desítky stránek a sada z nich všech by byla k ničemu.
+Záložka **Kapitoly** album rozdělí na souvislé rozsahy stránek (lekce 1A,
+1B, Culture, Revision …) a z každé kapitoly pak jde složit sady.
+
+**Navrhnout kapitoly modelem:** textový model dostane ke každé stránce
+prvních pár řádků přepisu (nadpisy lekcí, čísla cvičení — ne celé stránky,
+to by bylo na desítky tisíc tokenů) a vrátí rozdělení s rozsahem stránek
+a krátkou poznámkou, co se tam probírá. Jemnost si vybereš: *části lekcí*
+(1A, 1B, Culture, Revision …) nebo *celé lekce* (Unit 1, Unit 2 …). Návrh
+uvidíš v tabulce a teprve po potvrzení nahradí stávající kapitoly. Stránky
+jsou číslované podle pořadí v albu (1 = první fotka); učebnici naskenovanou
+pozpátku to nevadí, model dostane pokyn, ať rozsah vždycky napíše od menšího
+čísla. Co nesedí, opravíš přímo v tabulce (označení, název, od–do, poznámka)
+a každý řádek uložíš tlačítkem ✔; kapitolu jde přidat i ručně.
+
+**Sada z jedné kapitoly ručně:** tlačítko *sada ručně* u kapitoly otevře
+Tvorbu sad jen s jejími stránkami zaškrtnutými a s názvem i zdrojem
+předvyplněnými (*Project 2, 1A My daily life*). Dál je to stejné jako níž.
+
+**Sady ze všech kapitol naráz:** zaškrtni kapitoly a typy sad (výchozí
+*dvojice* = slovíčka lekce s překladem a *doplnovacka*), vyber model a dej
+*Zařadit do fronty*. Pro každou kombinaci kapitola × typ vznikne jedno
+skládání; frontu tlačí prohlížeč, dokud je stránka otevřená, a cron ji dojede
+i po zavření (přepisy mají přednost, skládání bere, co zbyde z rozpočtu
+tiku). Hotová sada se **rovnou uloží** do Sad s názvem *1A My daily life —
+slovíčka* a zdrojem *album, kapitola*; po položkách ji pak upravíš v
+Sadách. Položky, které neprojdou kontrolou (duplicita, chybí odpověď,
+doplňovačka bez mezery), se vynechají a u skládání zůstane varování, kolik
+jich bylo. Když je chyba v hlavičce nebo zbydou míň než čtyři položky,
+skládání skončí chybou: JSON zůstane uložený a tlačítkem *otevřít v importu*
+ho opravíš ručně, nebo dáš *znovu*. U angličtiny dostane model k dvojicím
+pokyn, ať do „a“ dá anglické slovo z lekce a do „b“ český překlad — ten si
+doplní sám, v učebnici obvykle není.
 
 ## Tvorba sad
 

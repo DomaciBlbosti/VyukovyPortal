@@ -574,12 +574,25 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
     $r = $call($prompt);
     if (!$r['ok']) return $fail($r['error']);
 
+    if (llmLooksLikeRefusal($r['text'])) return $fail('Model stránku odmítl přepsat („' . mb_substr(trim($r['text']), 0, 60) . '“). Zkus jiný model.');
+
     $blocks = parseOcrBlocks($r['text'], $stats);
     $text   = $blocks ? blocksToText($blocks) : cleanOcrText($r['text']);
     if ($text === '') return $fail('Model vrátil prázdný přepis.');
 
     return ['ok' => true, 'text' => $text, 'blocks' => $blocks, 'error' => '',
             'warning' => ocrRunWarning($text, $prompt, $stats, $r), 'tokens' => (int)($r['tokens'] ?? 0)];
+}
+
+/**
+ * Komerční model občas místo přepisu pošle omluvu („I'm sorry, I can't assist
+ * with that.“) se stavem 200 — bez téhle kontroly by se uložila jako hotový
+ * přepis a záložní model by se k ničemu nedostal.
+ */
+function llmLooksLikeRefusal(string $text): bool {
+    $t = trim($text);
+    return $t !== '' && mb_strlen($t) < 300
+        && (bool)preg_match('/^(I[’\']?m sorry|I am sorry|Sorry,|I can[’\']?t (help|assist)|I cannot (help|assist)|Omlouvám se|Bohužel nemohu|Nemohu (pomoci|přepsat))/iu', $t);
 }
 
 /**
@@ -665,6 +678,9 @@ function buildSetPrompt(string $text, array $meta): string {
         . ($kind === 'doplnovacka' ? "- v každé větě musí být přesně jedno podtržítko a přesně jedno vynechané slovo\n"
                                    . "- větu, kde je vynechaných slov víc, do sady nedávej\n"
                                    . "- odpověď je to jedno slovo, které do vynechávky patří\n" : '')
+        . ($kind === 'dvojice' && ($meta['subject'] ?? '') === 'anglictina'
+            ? "- do „a\" dej anglické slovo nebo frázi z textu, do „b\" český překlad — ten doplň sám, i když v textu není\n"
+            . "- ber slovíčka a fráze, které se v lekci probírají (slovní zásoba, výrazy z cvičení), ne pokyny k úlohám\n" : '')
         . ($kind === 'dvojice' ? "- dvojice se ve hře hraje oběma směry, tak ať dává smysl i obráceně:"
                                . " do „a\" ani do „b\" nepiš pokyn (napiš, zapiš, přeskládej), číslo úlohy"
                                . " ani nic, co platí jen pro jeden směr\n"
