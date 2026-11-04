@@ -38,12 +38,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'hint'    => (string)(($_POST['hint'][$i]) ?? ''),
                 ];
             }
+            // Název a zdroj jdou změnit tady taky; klíče položek pro chybovník se
+            // počítají i z názvu, proto se přepočítají společně s položkami
+            $newTitle  = trim((string)($_POST['title']  ?? $editSet['title']));
+            $newSource = trim((string)($_POST['source'] ?? $editSet['source']));
+            if ($newTitle !== '')  $editSet['title']  = $newTitle;
+            if ($newSource !== '') $editSet['source'] = $newSource;
+
             $checked = parseSetPayload(setPayloadFromItems($editSet, $rows));
             if ($checked['errors']) {
                 $error    = 'Sada se nedá uložit — oprav tohle:';
                 $preview  = $checked;
                 $editRows = $rows;
-            } elseif (replaceSetItems($editId, $checked['items'])) {
+            } elseif (replaceSetItems($editId, $checked['items']) && renameSet($editId, $editSet['title'], $editSet['source'])) {
                 $message = 'Uloženo: ' . $editSet['title'] . ' (' . count($checked['items']) . ' položek).';
             } else {
                 $error    = 'Uložení selhalo — zkus to znovu.';
@@ -229,6 +236,16 @@ include __DIR__ . '/../includes/header.php';
     <form method="post">
         <input type="hidden" name="action" value="update_items">
         <input type="hidden" name="set_id" value="<?= $editId ?>">
+        <div class="form-row" style="flex-direction:row;flex-wrap:wrap;gap:.75rem;margin-top:1rem">
+            <div class="form-group" style="margin:0;flex:1;min-width:14rem">
+                <label for="set_title">Název sady</label>
+                <input type="text" id="set_title" name="title" class="form-input" value="<?= htmlspecialchars($editSet['title']) ?>" required>
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:14rem">
+                <label for="set_source">Zdroj</label>
+                <input type="text" id="set_source" name="source" class="form-input" value="<?= htmlspecialchars($editSet['source']) ?>" required>
+            </div>
+        </div>
         <table class="data-table" style="margin-top:1rem">
             <thead><tr>
                 <th>#</th>
