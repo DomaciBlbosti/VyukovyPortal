@@ -591,8 +591,13 @@ function llmOcrPage(string $imageB64, array $opts = []): array {
  */
 function llmLooksLikeRefusal(string $text): bool {
     $t = trim($text);
-    return $t !== '' && mb_strlen($t) < 300
-        && (bool)preg_match('/^(I[’\']?m sorry|I am sorry|Sorry,|I can[’\']?t (help|assist)|I cannot (help|assist)|Omlouvám se|Bohužel nemohu|Nemohu (pomoci|přepsat))/iu', $t);
+    // Omluva je jeden krátký odstavec; stránka učebnice má řádků desítky
+    if ($t === '' || mb_strlen($t) > 400 || substr_count($t, "\n") > 2) return false;
+    // Krátká odpověď, která se omlouvá nebo odmítá — modely to říkají pokaždé
+    // jinak („I'm unable to transcribe…“, „copyrighted materials“, dokonce
+    // „Lo siento, no puedo…“), takže se hledají slova, ne přesná věta.
+    return (bool)preg_match('/\b(sorry|unable to|not able to|can[’\']?t (help|assist|provide|transcribe|complete|do that)'
+        . '|cannot (help|assist|provide|transcribe|complete)|copyright|verbatim|lo siento|no puedo|je mi líto|omlouvám|nemohu|nemůžu)\b/iu', $t);
 }
 
 /**
