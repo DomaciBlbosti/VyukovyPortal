@@ -236,3 +236,42 @@ CREATE TABLE IF NOT EXISTS ocr_blocks (
     INDEX idx_page (page_id),
     FOREIGN KEY (run_id) REFERENCES ocr_runs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Kapitoly učebnice: souvislý rozsah stránek alba (pořadí v albu, od 1)
+CREATE TABLE IF NOT EXISTS ocr_chapters (
+    id         INT          AUTO_INCREMENT PRIMARY KEY,
+    job_id     INT          NOT NULL,
+    position   INT          NOT NULL DEFAULT 0,
+    label      VARCHAR(20)  NOT NULL DEFAULT '',
+    title      VARCHAR(160) NOT NULL DEFAULT '',
+    note       VARCHAR(255) NOT NULL DEFAULT '',
+    page_from  INT          NOT NULL DEFAULT 1,
+    page_to    INT          NOT NULL DEFAULT 1,
+    created_at DATETIME     NULL,
+    INDEX idx_job (job_id, position),
+    FOREIGN KEY (job_id) REFERENCES ocr_jobs(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Fronta hromadného skládání sad z kapitol (kapitola × typ sady)
+CREATE TABLE IF NOT EXISTS set_builds (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    job_id      INT          NOT NULL,
+    chapter_id  INT          NULL,
+    kind        VARCHAR(20)  NOT NULL DEFAULT 'dvojice',
+    title       VARCHAR(120) NOT NULL DEFAULT '',
+    source      VARCHAR(180) NOT NULL DEFAULT '',
+    model       VARCHAR(120) NOT NULL DEFAULT '',
+    status      VARCHAR(10)  NOT NULL DEFAULT 'ceka',
+    set_id      INT          NULL,
+    json        MEDIUMTEXT   NULL,
+    error       VARCHAR(255) NOT NULL DEFAULT '',
+    warning     VARCHAR(255) NOT NULL DEFAULT '',
+    seconds     INT          NOT NULL DEFAULT 0,
+    created_by  INT          NULL,
+    created_at  DATETIME     NULL,
+    started_at  DATETIME     NULL,
+    finished_at DATETIME     NULL,
+    INDEX idx_status (status),
+    INDEX idx_job (job_id),
+    FOREIGN KEY (job_id) REFERENCES ocr_jobs(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

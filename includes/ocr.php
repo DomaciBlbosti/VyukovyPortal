@@ -810,6 +810,7 @@ function ocrCronTick(int $budget = OCR_CRON_BUDGET): array {
     }
     setSetting('ocr_cron_lock', (string)$started);
 
+    require_once __DIR__ . '/chapters.php';
     $processed = 0;
     $remaining = ocrOpenRunCount();
     try {
@@ -820,6 +821,16 @@ function ocrCronTick(int $budget = OCR_CRON_BUDGET): array {
             $remaining = (int)$r['remaining'];
             setSetting('ocr_cron_lock', (string)time());   // zámek žije, dokud tik pracuje
         }
+        // Přepisy mají přednost; co zbyde z rozpočtu, jde na skládání sad z kapitol
+        $builds = openSetBuildCount();
+        while ($builds > 0 && time() - $started < $budget) {
+            $r = processNextSetBuild();
+            if ($r['done']) break;
+            $processed++;
+            $builds = (int)$r['remaining'];
+            setSetting('ocr_cron_lock', (string)time());
+        }
+        $remaining += $builds;
     } finally {
         setSetting('ocr_cron_lock', '0');
         setSetting('ocr_cron_last_info', $processed . '|' . $remaining . '|' . (time() - $started));

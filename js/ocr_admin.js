@@ -215,6 +215,49 @@
         if (row) row.hidden = !row.hidden;
     }));
 
+    // ── Kapitoly: fronta skládání sad ──
+    // Dokud je stránka otevřená, tlačí frontu prohlížeč (jedno skládání za
+    // požadavek, stejně jako u přepisu); cron ji dojede i po zavření.
+    const buildRows = document.getElementById('buildRows');
+    if (buildRows && typeof BUILDS_OPEN !== 'undefined') {
+        const openEl = document.getElementById('buildOpen');
+        const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const refresh = async () => {
+            let st;
+            try { st = await post({ ajax: 'build_list', album_id: OCR_ALBUM_ID }); } catch (e) { return null; }
+            if (!st.ok) return null;
+            st.builds.forEach(b => {
+                const row = buildRows.querySelector(`tr[data-build="${b.id}"]`);
+                if (!row) return;
+                row.querySelector('.b-status').textContent = b.label;
+                if (b.status === 'hotovo' && b.set_id) {
+                    row.querySelector('.b-result').innerHTML =
+                        `<a href="${BASE_URL}/admin/sady.php?edit=${b.set_id}">sada #${b.set_id}</a> <span class="mistake-hint">· ${b.items} položek · ${b.seconds} s</span>`
+                        + (b.warning ? `<br><span class="mistake-hint">⚠ ${esc(b.warning)}</span>` : '');
+                } else if (b.status === 'chyba') {
+                    row.querySelector('.b-result').innerHTML = `<span style="color:var(--danger)">${esc(b.error)}</span>`
+                        + (b.has_json ? ' <span class="mistake-hint">(JSON po obnovení stránky otevřeš v importu)</span>' : '');
+                }
+            });
+            if (openEl) openEl.textContent = st.open ? `· zbývá ${st.open}` + (st.cron ? ' · dojíždí i cron' : '') : '· vše hotovo';
+            return st;
+        };
+        (async () => {
+            let open = BUILDS_OPEN;
+            let guard = 500;
+            while (open > 0 && guard-- > 0) {
+                let r;
+                try { r = await post({ ajax: 'build_process', album_id: OCR_ALBUM_ID }); }
+                catch (e) { await sleep(5000); continue; }
+                const st = await refresh();
+                open = st ? st.open : (r.done ? 0 : open);
+                if (r.done) break;
+            }
+            // Dojelo něco mimo tuhle stránku (cron) — ukázat tlačítka „znovu“/„otevřít v importu“ vyžaduje nový render
+            if (BUILDS_OPEN > 0) location.reload();
+        })();
+    }
+
     // ── Tvorba: text ze stránek a sestavení sady ──
     const loadTextBtn = document.getElementById('loadTextBtn');
     const ocrText     = document.getElementById('ocrText');

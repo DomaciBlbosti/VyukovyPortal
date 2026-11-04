@@ -11,6 +11,7 @@ require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../includes/ocr_ui.php';
 require_once __DIR__ . '/../includes/sets.php';
+require_once __DIR__ . '/../includes/chapters.php';
 
 // ── AJAX: skládání sady a dotaz na výsledek ──
 if (($_POST['ajax'] ?? '') !== '') {
@@ -74,7 +75,12 @@ $album   = $albumId ? getOcrJob($albumId) : null;
 $pages   = $album ? array_values(array_filter(ocrPages($albumId), fn($p) => pageText($p) !== '')) : [];
 $albums  = !$album ? array_filter(listOcrJobs(), fn($a) => (int)$a['done_count'] > 0) : [];
 
-$text     = $album ? ocrJobText($albumId) : '';
+// Z Kapitol: předvybrat jen stránky kapitoly a nabídnout její název jako název sady
+$chapter    = ($album && (int)($_GET['chapter'] ?? 0)) ? getChapter((int)$_GET['chapter']) : null;
+if ($chapter && (int)$chapter['job_id'] !== $albumId) $chapter = null;
+$chapterIds = $chapter ? array_map(fn($p) => (int)$p['id'], chapterPages($chapter, $pages)) : [];
+
+$text     = $chapter ? chapterText($chapter, $pages) : ($album ? ocrJobText($albumId) : '');
 $estTokens = estimateTokens($text);
 $ctxSize   = proxyContextSize();
 
@@ -107,12 +113,17 @@ include __DIR__ . '/../includes/header.php';
     <p class="mistake-hint" style="margin-top:1rem">Žádná stránka alba ještě nemá přepis —
         <a href="<?= BASE_URL ?>/admin/ocr.php?album=<?= $albumId ?>">pusť nejdřív OCR</a>.</p>
     <?php else: ?>
+    <?php if ($chapter): ?>
+    <div class="alert alert-ok" style="margin-top:1rem">Kapitola <strong><?= htmlspecialchars(chapterLabel($chapter)) ?></strong>
+        (stránky <?= (int)$chapter['page_from'] ?>–<?= (int)$chapter['page_to'] ?>) — zaškrtnuté jsou jen její stránky a text níž je z nich.
+        <a href="<?= BASE_URL ?>/admin/kapitoly.php?album=<?= $albumId ?>">← zpět na kapitoly</a></div>
+    <?php endif; ?>
     <p class="mistake-hint" style="margin:1rem 0 .5rem">
         Zaškrtni, co se má do textu vzít — celé stránky, nebo jen jednotlivá cvičení (podle bloků z modelu) —
         a dej <strong>Načíst text</strong>. Text níž pak můžeš ještě upravit; co je špatně v něm, bude špatně i v sadě.
     </p>
     <label class="mistake-hint" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem">
-        <input type="checkbox" id="pickAll" checked> vybrat vše
+        <input type="checkbox" id="pickAll" <?= $chapter ? '' : 'checked' ?>> vybrat vše
     </label>
     <?php $groups = []; foreach ($pages as $p): $ex = pageExercises($p); foreach ($ex as $e) $groups[$e['key']] = $e['text']; ?>
     <div class="ocr-exercise-page">
@@ -126,7 +137,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php foreach ($ex as $e): ?>
         <label class="ocr-exercise-pick">
-            <input type="checkbox" class="page-pick" value="<?= htmlspecialchars($e['key']) ?>" checked>
+            <input type="checkbox" class="page-pick" value="<?= htmlspecialchars($e['key']) ?>" <?= !$chapter || in_array((int)$p['id'], $chapterIds, true) ? 'checked' : '' ?>>
             <span><?= htmlspecialchars($e['label']) ?>
                 <span class="mistake-hint">· <?= mb_strlen($e['text']) ?> zn.<?= $e['images'] ? ' · 🖼 ' . $e['images'] : '' ?></span></span>
         </label>
@@ -160,11 +171,11 @@ include __DIR__ . '/../includes/header.php';
     <div class="form-row">
         <div class="form-group">
             <label for="set_title">Název sady</label>
-            <input type="text" id="set_title" class="form-input" value="<?= htmlspecialchars($album['title']) ?>">
+            <input type="text" id="set_title" class="form-input" value="<?= htmlspecialchars($chapter ? chapterLabel($chapter) : $album['title']) ?>">
         </div>
         <div class="form-group">
             <label for="source">Zdroj</label>
-            <input type="text" id="source" class="form-input" value="<?= htmlspecialchars($album['title']) ?>"
+            <input type="text" id="source" class="form-input" value="<?= htmlspecialchars($chapter ? trim($album['title'] . ', ' . chapterLabel($chapter), ', ') : $album['title']) ?>"
                    placeholder="Project 1, 4. vydání, Unit 3">
         </div>
     </div>

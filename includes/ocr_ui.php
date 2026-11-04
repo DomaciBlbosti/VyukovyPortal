@@ -10,6 +10,7 @@ function ocrNav(string $active): void {
     $tabs = [
         'galerie' => ['🖼️ Galerie',          'Nahrát, přesunout, smazat fotky'],
         'ocr'     => ['🔍 Přepis (OCR)',      'Pustit model na vybrané fotky'],
+        'kapitoly'=> ['📖 Kapitoly',          'Rozdělit učebnici na kapitoly a složit z nich sady'],
         'tvorba'  => ['🧩 Tvorba sad',        'Z přepisu složit sadu otázek'],
         'modely'  => ['⚙️ Modely a zadání',   'Ollama, API, prompty'],
     ]; ?>
