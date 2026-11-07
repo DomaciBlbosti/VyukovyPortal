@@ -151,7 +151,7 @@ include __DIR__ . '/../includes/header.php';
 
     <?php if ($mode === 'input'): ?>
     <div class="typing-input-wrapper">
-        <input type="text" inputmode="text" id="mathInput" class="typing-input"
+        <input type="text" inputmode="text" id="mathInput" class="typing-input" data-keys=",/zb"
                style="font-size:1.5rem;text-align:center"
                placeholder="napiš výsledek..." autocomplete="off" disabled>
         <button id="startBtn" class="btn-primary">Začít ▶</button>
