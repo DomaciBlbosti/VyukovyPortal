@@ -181,8 +181,10 @@ $taskNote = match (true) {
 
     <?php if ($mode === 'input'): ?>
     <div class="typing-input-wrapper">
+        <?php // které klávesy navíc číselník potřebuje: desetinná čárka, lomítko zlomku, zbytek
+              $keys = match ($topic) { 'desetinna' => ',', 'zlomky' => '/,', 'deleni' => 'zb', default => '' }; ?>
         <input type="text" inputmode="<?= in_array($topic, ['zlomky','deleni','desetinna'], true) ? 'text' : 'numeric' ?>"
-               id="mathInput" class="typing-input"
+               id="mathInput" class="typing-input" data-keys="<?= htmlspecialchars($keys) ?>"
                style="font-size:1.5rem;text-align:center"
                placeholder="napiš výsledek..." autocomplete="off" disabled>
         <button id="startBtn" class="btn-primary">Začít ▶</button>

@@ -66,9 +66,63 @@
 
     const submitBtn = document.getElementById('submitBtn');
 
+    // Číselník na obrazovce: na dotykovém zařízení místo systémové klávesnice,
+    // která zabere půl displeje a odscrolluje příklad pryč. Na počítači s myší
+    // se nestaví a píše se normálně. inputmode="none" nechá pole aktivní
+    // (Enter, fyzická klávesnice), ale klávesnici na mobilu neotevře.
+    const keypad = buildKeypad();
+    function buildKeypad() {
+        if (!window.matchMedia('(pointer: coarse)').matches) return null;
+        input.setAttribute('inputmode', 'none');
+        const extra    = input.dataset.keys || '';
+        const specials = [];
+        if (extra.includes(',')) specials.push({ label: ',',  ins: ',' });
+        if (extra.includes('/')) specials.push({ label: '/',  ins: '/' });
+        if (extra.includes('zb')) specials.push({ label: 'zb', ins: ' zb ' });
+
+        // čtyři sloupce: číslice vlevo, vpravo mazání a speciální klávesy, dole OK
+        const rows = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['0']];
+        const keys = [];
+        rows.forEach((row, r) => {
+            row.forEach(k => keys.push({ label: k, ins: k }));
+            if (r === 3) { keys.push(specials.shift() || { label: '', dead: true }); keys.push({ label: '✓ OK', act: 'ok', wide: true }); return; }
+            keys.push(r === 0 ? { label: '⌫', act: 'back' } : (specials.shift() || { label: '', dead: true }));
+        });
+        // kdyby speciálních kláves bylo víc, než je volných míst, přidá se řádek
+        while (specials.length) keys.push(specials.shift());
+
+        const pad = document.createElement('div');
+        pad.className = 'math-keypad';
+        pad.hidden = true;
+        keys.forEach(k => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'math-key' + (k.wide ? ' math-key-ok' : '') + (k.act === 'back' ? ' math-key-back' : '') + (k.dead ? ' math-key-dead' : '');
+            b.textContent = k.label;
+            if (k.dead) { b.disabled = true; b.tabIndex = -1; }
+            // pointerdown + preventDefault: tlačítko nebere fokus a pole zůstává aktivní
+            b.addEventListener('pointerdown', e => e.preventDefault());
+            b.addEventListener('click', () => {
+                if (input.disabled) return;
+                if (k.act === 'ok') { submitAnswer(); }
+                else if (k.act === 'back') { input.value = input.value.replace(/( zb |.)$/, ''); }
+                else if (k.ins) {
+                    // dvě mezery ani dva zbytky za sebou nedávají smysl
+                    if (k.ins === ' zb ' && / zb /.test(input.value)) return;
+                    input.value = (k.ins === ' zb ' ? input.value.trimEnd() : input.value) + k.ins;
+                }
+                input.focus({ preventScroll: true });
+            });
+            pad.appendChild(b);
+        });
+        document.querySelector('.typing-input-wrapper').after(pad);
+        return pad;
+    }
+
     startBtn.addEventListener('click', () => {
         startBtn.style.display = 'none';
-        if (submitBtn) submitBtn.style.display = '';
+        if (submitBtn) submitBtn.style.display = keypad ? 'none' : '';   // číselník má vlastní OK
+        if (keypad) keypad.hidden = false;
         input.disabled = false;
         input.focus();
         startTime = Date.now();
@@ -120,6 +174,7 @@
         input.disabled = true;
         current = Math.min(current, examples.length);
         if (submitBtn) submitBtn.style.display = 'none';
+        if (keypad) keypad.hidden = true;
         if (finishGame.done) return;   // limit i poslední odpověď můžou přijít naráz
         finishGame.done = true;
         const elapsed    = timedOut ? TIME_LIMIT : (Date.now() - startTime) / 1000;
