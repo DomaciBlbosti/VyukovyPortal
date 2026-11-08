@@ -86,6 +86,17 @@ function renderReward(data, statusEl) {
         anchorEl = el;
     });
 
+    // Domácí úkol: splněná úloha a odemčení her
+    const hw = data.homework || {};
+    (hw.done || []).forEach(label => {
+        const el = document.createElement('div');
+        el.className = 'challenge-earned';
+        el.innerHTML = '📌 Domácí úkol splněn: <strong>' + label + '</strong>' +
+                       (hw.all_done ? '<div class="levelup-sub">🎉 Dnes máš hotovo — všechny hry jsou odemčené</div>' : '');
+        anchorEl.after(el);
+        anchorEl = el;
+    });
+
     // Nově získané odznaky — vkládáme za sebe, ať drží pořadí
     (data.achievements || []).forEach(a => {
         const el = document.createElement('div');

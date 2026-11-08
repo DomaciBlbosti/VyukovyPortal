@@ -1466,3 +1466,13 @@ a:hover { text-decoration: underline; }
 .math-key-back { font-size:1.2rem; color:var(--muted); }
 .math-key-ok   { grid-column:span 2; background:var(--accent); color:#000; border-color:var(--accent); font-size:1.1rem; }
 .math-key-dead { visibility:hidden; }
+
+/* Domácí úkoly: přehled dnů v adminu */
+.hw-history { display:flex; gap:.3rem; flex-wrap:wrap; }
+.hw-day { width:2.7rem; text-align:center; font-family:var(--font-mono); font-size:.65rem; color:var(--muted); }
+.hw-day span { display:block; height:1.4rem; line-height:1.4rem; border-radius:6px; margin-bottom:.15rem; font-size:.85rem; background:var(--bg3); border:1px solid var(--border); }
+.hw-day.done span    { background:rgba(74,222,128,.2);  border-color:var(--accent); }
+.hw-day.partial span { background:rgba(251,191,36,.2);  border-color:#fbbf24; }
+.hw-day.open span, .hw-day.missed span { background:rgba(248,113,113,.18); border-color:var(--danger); }
+.hw-day.today span   { border-color:var(--accent2); }
+.hw-day.off span     { opacity:.35; }

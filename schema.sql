@@ -275,3 +275,50 @@ CREATE TABLE IF NOT EXISTS set_builds (
     INDEX idx_job (job_id),
     FOREIGN KEY (job_id) REFERENCES ocr_jobs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Domácí úkoly: plán dítěte (co, kolikrát, jak přesně, které dny) …
+CREATE TABLE IF NOT EXISTS homework_plans (
+    id           INT          AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT          NOT NULL,
+    title        VARCHAR(120) NOT NULL DEFAULT 'Domácí úkol',
+    mode         VARCHAR(10)  NOT NULL DEFAULT 'rotate',
+    rounds       INT          NOT NULL DEFAULT 1,
+    min_accuracy INT          NOT NULL DEFAULT 80,
+    weekdays     VARCHAR(7)   NOT NULL DEFAULT '1111111',
+    lock_games   TINYINT(1)   NOT NULL DEFAULT 1,
+    active       TINYINT(1)   NOT NULL DEFAULT 1,
+    created_by   INT          NULL,
+    created_at   DATETIME     NULL,
+    INDEX idx_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- … jeho úlohy z katalogu …
+CREATE TABLE IF NOT EXISTS homework_items (
+    id        INT          AUTO_INCREMENT PRIMARY KEY,
+    plan_id   INT          NOT NULL,
+    position  INT          NOT NULL DEFAULT 0,
+    game_type VARCHAR(50)  NOT NULL,
+    topic     VARCHAR(120) NOT NULL DEFAULT '',
+    INDEX idx_plan (plan_id),
+    FOREIGN KEY (plan_id) REFERENCES homework_plans(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- … a úkoly na konkrétní dny (co bylo zadáno a jak dopadlo)
+CREATE TABLE IF NOT EXISTS homework_days (
+    id            INT          AUTO_INCREMENT PRIMARY KEY,
+    plan_id       INT          NOT NULL,
+    user_id       INT          NOT NULL,
+    day           DATE         NOT NULL,
+    item_pos      INT          NOT NULL DEFAULT 0,
+    game_type     VARCHAR(50)  NOT NULL,
+    topic         VARCHAR(120) NOT NULL DEFAULT '',
+    rounds        INT          NOT NULL DEFAULT 1,
+    min_accuracy  INT          NOT NULL DEFAULT 80,
+    done_rounds   INT          NOT NULL DEFAULT 0,
+    best_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0,
+    completed_at  DATETIME     NULL,
+    UNIQUE KEY unique_day (plan_id, day, item_pos),
+    INDEX idx_user_day (user_id, day),
+    FOREIGN KEY (plan_id) REFERENCES homework_plans(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

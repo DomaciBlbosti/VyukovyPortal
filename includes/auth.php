@@ -17,6 +17,17 @@ function requireLogin(): void {
         header('Location: ' . BASE_URL . '/index.php');
         exit;
     }
+    // Domácí úkol se zámkem: dokud není hotový, jiná hra se neotevře.
+    // Jen při otevření stránky (GET) — ukládání výsledku je POST na tutéž
+    // adresu a to projít musí, jinak by se splněný úkol nezapočítal.
+    if (!isAdmin() && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+        && str_contains((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/games/')) {
+        require_once __DIR__ . '/homework.php';
+        if (!homeworkAllowsCurrentGame((int)$_SESSION['user_id'])) {
+            header('Location: ' . BASE_URL . '/dashboard.php?ukol=zamceno');
+            exit;
+        }
+    }
 }
 
 function requireAdmin(): void {
@@ -151,6 +162,11 @@ function saveGameResult(array $data): array {
     $challenge = recordChallengePlay((int)$user['id'], (string)($data['game_type'] ?? ''),
                                      array_values(array_unique($playedTopics)),
                                      (float)($data['accuracy'] ?? 0));
+    // Domácí úkol: stejná hra může splnit i dnešní úkol nebo rest
+    require_once __DIR__ . '/homework.php';
+    $homework = recordHomeworkPlay((int)$user['id'], (string)($data['game_type'] ?? ''),
+                                   array_values(array_unique($playedTopics)),
+                                   (float)($data['accuracy'] ?? 0));
 
     return [
         'ok'           => true,
@@ -160,5 +176,6 @@ function saveGameResult(array $data): array {
         'levelup'      => $after['level'] > $before['level'],
         'achievements' => checkAchievements((int)$user['id'], $data),
         'challenge'    => $challenge,
+        'homework'     => $homework,
     ];
 }
