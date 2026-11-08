@@ -109,6 +109,8 @@ $hours   = intdiv($minutes, 60);
 </section>
 <?php endif; ?>
 
+<p style="margin:0 0 1.5rem"><a href="<?= BASE_URL ?>/vysledky.php" class="btn-secondary">📋 Všechny odehrané hry a odpovědi →</a></p>
+
 <!-- Statistiky podle typu hry -->
 <?php if (!empty($byType)): ?>
 <section class="stats-table-section">

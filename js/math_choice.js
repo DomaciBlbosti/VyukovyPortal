@@ -77,7 +77,7 @@
         feedbackEl.className   = 'math-feedback ' + (isOk ? 'feedback-ok' : 'feedback-err');
 
         answers.push({ key: examples[current].key, ok: isOk,
-                       prompt: examples[current].q, answer: answer });
+                       prompt: examples[current].q, answer: answer, given: chosen });
 
         if (isOk) correct++; else wrong++;
         document.getElementById('statScore').textContent  = correct;

@@ -142,6 +142,11 @@ function saveGameResult(array $data): array {
     // Maraton se ukládá jako vlastní hra (kvůli rekordům), ale jeho chyby
     // patří k matematice — ať se nabídnou při tréninku té které sady.
     $answersGame = (string)($data['answers_game_type'] ?? $data['game_type'] ?? '');
+
+    // Všechny odpovědi z téhle hry k pozdějšímu prohlédnutí (vysledek.php)
+    require_once __DIR__ . '/results.php';
+    $answersSaved = saveGameAnswers($id, (int)$user['id'], $data);
+
     if (!empty($data['answers'])) {
         recordAnswers((int)$user['id'], $answersGame, $data['answers'],
                       (string)($data['topic'] ?? ''), (string)($data['topic_label'] ?? ''));
@@ -177,5 +182,6 @@ function saveGameResult(array $data): array {
         'achievements' => checkAchievements((int)$user['id'], $data),
         'challenge'    => $challenge,
         'homework'     => $homework,
+        'answers_saved' => $answersSaved,
     ];
 }

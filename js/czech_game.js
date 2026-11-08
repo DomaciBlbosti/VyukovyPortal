@@ -88,7 +88,7 @@
                                '<span class="cz-hint">' + t.hint + '</span>';
 
         const filled = t.text.replace('_', t.correct);
-        answers.push({ key: t.key, ok: isOk, prompt: filled, answer: t.correct, hint: t.hint });
+        answers.push({ key: t.key, ok: isOk, prompt: filled, answer: t.correct, given: chosen, hint: t.hint });
 
         if (isOk) {
             correct++;

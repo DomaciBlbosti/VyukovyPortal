@@ -1476,3 +1476,8 @@ a:hover { text-decoration: underline; }
 .hw-day.open span, .hw-day.missed span { background:rgba(248,113,113,.18); border-color:var(--danger); }
 .hw-day.today span   { border-color:var(--accent2); }
 .hw-day.off span     { opacity:.35; }
+
+/* Výsledek hry: odpovědi */
+.answer-wrong td { background: rgba(248,113,113,.07); }
+.answer-ok  { color: var(--accent); font-weight: 700; }
+.answer-err { color: var(--danger); font-weight: 700; }

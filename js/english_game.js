@@ -105,7 +105,7 @@
                                      : '<strong class="feedback-err">✘ Chyba.</strong> ') +
                                '<span class="cz-hint">' + t.hint + '</span>';
 
-        answers.push({ key: t.key, ok: isOk, prompt: t.q, answer: t.a, hint: t.hint });
+        answers.push({ key: t.key, ok: isOk, prompt: t.q, answer: t.a, given: given, hint: t.hint });
 
         if (isOk) {
             correct++;

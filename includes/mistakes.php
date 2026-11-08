@@ -186,6 +186,7 @@ function parseAnswerPayload(?string $json): array {
             'ok'     => !empty($it['ok']),
             'prompt' => (string)($it['prompt'] ?? ''),
             'answer' => (string)($it['answer'] ?? ''),
+            'given'  => (string)($it['given']  ?? ''),
             'hint'   => (string)($it['hint']   ?? ''),
         ];
     }
