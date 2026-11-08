@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/levels.php';
 require_once __DIR__ . '/includes/daily.php';
 require_once __DIR__ . '/includes/mistakes.php';
 require_once __DIR__ . '/includes/challenges.php';
+require_once __DIR__ . '/includes/homework.php';
 
 $user  = getCurrentUser();
 $db    = getDB();
@@ -13,6 +14,8 @@ $myLvl = getUserLevel((int)$user['id']);
 $daily = dailyStats((int)$user['id']);
 $toFix = openMistakeCount((int)$user['id']);
 $myChallenges = userChallenges((int)$user['id'], true);
+$homework     = homeworkStatus((int)$user['id']);
+$hwLocked     = isset($_GET['ukol']) && $_GET['ukol'] === 'zamceno';
 
 $stmt = $db->prepare('
     SELECT COUNT(*) AS total_games, ROUND(MAX(wpm),1) AS best_wpm,
@@ -158,6 +161,49 @@ include __DIR__ . '/includes/header.php';
     <h1>Vítej, <span class="accent"><?= htmlspecialchars($user['display_name']) ?></span>!</h1>
     <p class="page-subtitle">Co dnes nacvičíme?</p>
 </div>
+
+<?php if ($homework['today'] || $homework['overdue']): ?>
+<section style="margin-bottom:1.5rem">
+    <h2 class="section-title">📌 Domácí úkol</h2>
+    <?php if ($hwLocked && $homework['open']): ?>
+    <div class="alert alert-error">Nejdřív domácí úkol, pak ostatní hry. Až bude hotový, všechno se odemkne.</div>
+    <?php endif; ?>
+    <div class="challenge-card <?= $homework['open'] === 0 ? 'challenge-done' : '' ?>">
+        <div class="challenge-head">
+            <span class="challenge-title"><?= $homework['open'] === 0 ? '✔ Dnešní úkol je hotový' : '📌 Dnes máš za úkol' ?></span>
+            <span class="challenge-meta"><?= count(array_filter($homework['today'], fn($r) => $r['done'])) ?>/<?= count($homework['today']) ?> hotovo</span>
+        </div>
+        <?php foreach ($homework['today'] as $r): ?>
+        <div class="challenge-step <?= $r['done'] ? 'challenge-step-done' : '' ?>">
+            <span class="challenge-step-label"><?= $r['done'] ? '✔' : '▢' ?> <?= htmlspecialchars($r['label']) ?></span>
+            <span class="challenge-step-state">
+                <?php if ($r['done']): ?>hotovo<?php else: ?>
+                <?= $r['done_rounds'] ?>/<?= $r['rounds'] ?>× · min <?= (int)$r['min_accuracy'] ?> %
+                <?php if ((float)$r['best_accuracy'] > 0 && (float)$r['best_accuracy'] < (int)$r['min_accuracy']): ?>· zatím <?= round($r['best_accuracy']) ?> %<?php endif; ?>
+                <a class="challenge-step-play" href="<?= htmlspecialchars($r['url']) ?>">hrát →</a>
+                <?php endif; ?>
+            </span>
+        </div>
+        <?php endforeach; ?>
+        <?php if (!$homework['today']): ?>
+        <div class="challenge-step"><span class="challenge-step-label mistake-hint">Dnes nový úkol není, ale zbývají resty níž.</span></div>
+        <?php endif; ?>
+        <?php if ($homework['overdue']): ?>
+        <div class="challenge-step" style="margin-top:.5rem"><span class="challenge-step-label" style="color:var(--danger)">Resty z minulých dnů (<?= count($homework['overdue']) ?>):</span></div>
+        <?php foreach ($homework['overdue'] as $r): ?>
+        <div class="challenge-step">
+            <span class="challenge-step-label">▢ <?= htmlspecialchars($r['label']) ?> <span class="mistake-hint">· <?= date('j.n.', strtotime($r['day'])) ?></span></span>
+            <span class="challenge-step-state"><?= $r['done_rounds'] ?>/<?= $r['rounds'] ?>× · min <?= (int)$r['min_accuracy'] ?> %
+                <a class="challenge-step-play" href="<?= htmlspecialchars($r['url']) ?>">hrát →</a></span>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+        <?php if ($homework['lock'] && $homework['open']): ?>
+        <p class="mistake-hint" style="margin:.5rem 0 0">🔒 Ostatní hry se odemknou, až bude úkol hotový.</p>
+        <?php endif; ?>
+    </div>
+</section>
+<?php endif; ?>
 
 <?php if ($myChallenges): ?>
 <section style="margin-bottom:1.5rem">

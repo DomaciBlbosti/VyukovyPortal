@@ -107,18 +107,10 @@ if ($editing) {
 $pageTitle = 'Výzvy';
 include __DIR__ . '/../includes/header.php';
 
-/** <option> se všemi úlohami, seskupené po předmětech */
+/** <option> se všemi úlohami, seskupené po předmětech (sdílené s domácími úkoly) */
 function taskOptions(string $selected = ''): void {
-    foreach (catalogTasks() as $gameType => $cat) {
-        echo '<optgroup label="' . htmlspecialchars($cat['icon'] . ' ' . $cat['label']) . '">';
-        foreach ($cat['items'] as $topic => $item) {
-            $value = $gameType . '|' . $topic;
-            echo '<option value="' . htmlspecialchars($value) . '"'
-               . ($value === $selected ? ' selected' : '') . '>'
-               . htmlspecialchars($item['label']) . '</option>';
-        }
-        echo '</optgroup>';
-    }
+    require_once __DIR__ . '/../includes/homework.php';
+    catalogTaskOptions($selected);
 }
 ?>
 

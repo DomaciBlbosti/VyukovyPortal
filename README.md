@@ -56,6 +56,16 @@ echo password_hash('nové_heslo', PASSWORD_BCRYPT);
 
 ---
 
+## 📌 Domácí úkoly
+
+Admin → **Domácí úkoly** založí dítěti plán: seznam úloh z katalogu (sada
+z učebnice, řada násobilky, maraton …), kolikrát a s jakou přesností, ve
+které dny. Každý naplánovaný den z toho vznikne úkol — buď další úloha ze
+seznamu postupně dokola („každý den jedna sada“), nebo všechny naráz. Dítě ho
+vidí nahoře na rozcestníku a splní ho odehráním; nesplněný úkol zůstává jako
+rest. Plán může **zamknout ostatní hry**, dokud úkol není hotový. Rodič má
+u plánu přehled posledních čtrnácti dnů a tlačítko na odpuštění restů.
+
 ## Struktura souborů
 
 ```
