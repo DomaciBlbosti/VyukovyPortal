@@ -54,6 +54,21 @@ CREATE TABLE IF NOT EXISTS game_multipliers (
     multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Všechny odpovědi z jedné hry — ať si dítě i rodič můžou výsledek projít a ověřit
+CREATE TABLE IF NOT EXISTS game_answers (
+    id          INT          AUTO_INCREMENT PRIMARY KEY,
+    session_id  INT          NOT NULL,
+    user_id     INT          NOT NULL,
+    position    INT          NOT NULL DEFAULT 0,
+    topic_label VARCHAR(120) NOT NULL DEFAULT '',
+    prompt      VARCHAR(500) NOT NULL DEFAULT '',
+    given       VARCHAR(255) NOT NULL DEFAULT '',
+    answer      VARCHAR(255) NOT NULL DEFAULT '',
+    ok          TINYINT(1)   NOT NULL DEFAULT 0,
+    INDEX idx_session (session_id),
+    FOREIGN KEY (session_id) REFERENCES game_sessions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS mistakes (
     id             INT          AUTO_INCREMENT PRIMARY KEY,
     user_id        INT          NOT NULL,

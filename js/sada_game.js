@@ -93,7 +93,7 @@
 
         const shown = t.prompt.includes('_') ? t.prompt.replace('_', t.correct)
                                              : t.prompt + ' → ' + t.correct;
-        answers.push({ key: t.key, ok: isOk, prompt: t.prompt, answer: t.correct, hint: t.hint });
+        answers.push({ key: t.key, ok: isOk, prompt: t.prompt, answer: t.correct, given: chosen, hint: t.hint });
 
         if (isOk) {
             correct++;

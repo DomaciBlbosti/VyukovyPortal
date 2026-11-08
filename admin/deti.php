@@ -65,6 +65,7 @@ include __DIR__ . '/../includes/header.php';
         </span>
         <span class="mistake-group-count">
             Level <?= $lvl['level'] ?> · <?= number_format($lvl['points'], 0, ',', ' ') ?> bodů
+            · <a href="<?= BASE_URL ?>/vysledky.php?user=<?= $uid ?>">odehrané hry a odpovědi →</a>
         </span>
     </div>
 

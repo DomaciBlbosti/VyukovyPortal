@@ -97,6 +97,15 @@ function renderReward(data, statusEl) {
         anchorEl = el;
     });
 
+    // Odkaz na všechny odpovědi téhle hry (ukládají se jen u her s úlohami)
+    if (data.id && data.answers_saved) {
+        const el = document.createElement('div');
+        el.className = 'marathon-result';
+        el.innerHTML = '📋 <a href="' + (window.BASE_URL || '') + '/vysledek.php?id=' + data.id + '">Projít všechny odpovědi →</a>';
+        anchorEl.after(el);
+        anchorEl = el;
+    }
+
     // Nově získané odznaky — vkládáme za sebe, ať drží pořadí
     (data.achievements || []).forEach(a => {
         const el = document.createElement('div');
