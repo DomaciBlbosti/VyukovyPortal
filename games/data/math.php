@@ -204,6 +204,31 @@ function mathExDesetinna(string $variant): array {
     return ['q' => mathFmt($a) . ' − ' . mathFmt($b) . ' =', 'a' => mathFmt($a - $b)];
 }
 
+/**
+ * Spočítá znovu výsledek jednoduchého zadání „A op B =" (+ − × ÷, desetinná
+ * čárka). Počítá v tisícinách jako s celými čísly, ať nevznikne 0,30000004.
+ * Vrací null, když zadání takhle nevypadá (zlomky, zbytek, dělitelnost).
+ */
+function mathRecomputeAnswer(string $q): ?string {
+    // „17 ÷ 5 = ?" je dělení se zbytkem (odpověď „3 zb 2"), to sem nepatří
+    if (!preg_match('/^\s*(\d+(?:,\d+)?)\s*([+−×÷\-*\/])\s*(\d+(?:,\d+)?)\s*=\s*$/u', $q, $m)) return null;
+    $a  = (int)round((float)str_replace(',', '.', $m[1]) * 1000);
+    $b  = (int)round((float)str_replace(',', '.', $m[3]) * 1000);
+    $op = $m[2];
+    switch ($op) {
+        case '+': $r = $a + $b; break;
+        case '−': case '-': $r = $a - $b; break;
+        case '×': case '*': $r = $a * $b / 1000; break;
+        default:
+            if ($b === 0) return null;
+            $r = $a * 1000 / $b;                     // v tisícinách
+            if (abs($r - round($r)) > 1e-6) return null;   // nevychází na tisíciny — není to tenhle druh příkladu
+            $r = round($r);
+    }
+    if ($r < 0) return null;
+    return mathFmt($r / 1000);
+}
+
 /** Desetiny 0,1–9,9 bez celých čísel — „4 ÷ 4" by nic neprocvičilo */
 function mathTenths(): int {
     do { $t = rand(1, 99); } while ($t % 10 === 0);
@@ -384,7 +409,9 @@ function mathInjectPractice(array &$examples, array $rows): int {
 
     foreach ($rows as $r) {
         $q = (string)($r['prompt'] ?? '');
-        $a = (string)($r['correct_answer'] ?? '');
+        // Výsledek radši spočítat znovu než věřit uloženému — chybovník si
+        // pamatuje i odpovědi z doby, kdy generátor zaokrouhloval (0,38 místo 0,376)
+        $a = mathRecomputeAnswer($q) ?? (string)($r['correct_answer'] ?? '');
         if ($q === '' || $a === '' || in_array($q, $present, true)) continue;
 
         foreach ($examples as $i => $ex) {

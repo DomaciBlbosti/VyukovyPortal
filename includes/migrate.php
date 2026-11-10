@@ -221,5 +221,20 @@ function runMigrations(PDO $db): array {
         $done[] = 'token pro cron se nepodařilo vygenerovat: ' . $e->getMessage();
     }
 
+    // 14. Chybovník matematiky: výsledky uložené z doby, kdy generátor
+    //     zaokrouhloval desetinná čísla na dvě místa (37,6 ÷ 100 = „0,38")
+    try {
+        require_once __DIR__ . '/../games/data/math.php';
+        $rows = $db->query("SELECT id, prompt, correct_answer FROM mistakes WHERE game_type = 'math' AND topic LIKE 'desetinna/%'")->fetchAll();
+        $upd  = $db->prepare('UPDATE mistakes SET correct_answer = ? WHERE id = ?');
+        $n = 0;
+        foreach ($rows as $r) {
+            $fix = mathRecomputeAnswer((string)$r['prompt']);
+            if ($fix !== null && $fix !== (string)$r['correct_answer']) { $upd->execute([$fix, $r['id']]); $n++; }
+        }
+        if ($n) $done[] = 'chybovník: opraveno ' . $n . ' výsledků desetinných čísel';
+    } catch (PDOException $e) {
+    }
+
     return $done;
 }
