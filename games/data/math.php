@@ -210,10 +210,15 @@ function mathTenths(): int {
     return $t;
 }
 
-/** Desetinné číslo česky (s čárkou) a bez zbytečných nul */
+/**
+ * Desetinné číslo česky (s čárkou) a bez zbytečných nul.
+ *
+ * Tři desetinná místa: 37,6 ÷ 100 je 0,376 a dvě místa by to zaokrouhlila
+ * na 0,38 — pak by správná odpověď dítěte prošla jako chyba.
+ */
 function mathFmt(float $n): string {
-    $s = rtrim(rtrim(number_format($n, 2, ',', ''), '0'), ',');
-    return $s === '' ? '0' : $s;
+    $s = rtrim(rtrim(number_format($n, 3, ',', ''), '0'), ',');
+    return $s === '' || $s === '-0' ? '0' : $s;
 }
 
 function mathExZlomky(string $variant): array {

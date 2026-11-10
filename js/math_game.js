@@ -8,7 +8,9 @@
     function normalize(s) {
         return String(s).trim().toLowerCase()
             .replace(/\./g, ',')          // 4.5 → 4,5 ; zb. → zb,
-            .replace(/,(?=\s|$)/g, '')    // odstraň čárku na konci (zb,)
+            .replace(/(,\d*?)0+\b/g, '$1') // 0,50 → 0, ; 2,0 → 2,  (nuly za desetinnou čárkou nic nemění)
+            .replace(/,(?=\s|$|\/)/g, '')  // odstraň čárku na konci (zb, / 2,)
+            .replace(/(^|[^\d,])0+(?=\d)/g, '$1') // 07 → 7 ; 3 zb 02 → 3 zb 2 (nula navíc z číselníku); 0,07 zůstává
             .replace(/\s+/g, ' ')
             .replace(/\s*\/\s*/g, '/'); // 3 / 4 → 3/4
     }
